@@ -15,19 +15,19 @@ class SQLiteManagerServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__.'/config/sqlite-manager.php', 'sqlite-manager');
+        $this->mergeConfigFrom($this->packagePath('config/sqlite-manager.php'), 'sqlite-manager');
     }
 
     public function boot(): void
     {
-        $this->loadViewsFrom(__DIR__.'/resources/views', 'sqlite-manager');
-        Blade::anonymousComponentPath(__DIR__.'/resources/views/components', 'sqlite-manager');
+        $this->loadViewsFrom($this->packagePath('resources/views'), 'sqlite-manager');
+        Blade::anonymousComponentPath($this->packagePath('resources/views/components'), 'sqlite-manager');
         Livewire::component('sqlite-manager.manager', SQLiteManager::class);
 
         $this->registerRoutes();
 
         $this->publishes([
-            __DIR__.'/config/sqlite-manager.php' => config_path('sqlite-manager.php'),
+            $this->packagePath('config/sqlite-manager.php') => config_path('sqlite-manager.php'),
         ], 'sqlite-manager-config');
 
         if ($this->app->runningInConsole()) {
@@ -46,7 +46,12 @@ class SQLiteManagerServiceProvider extends ServiceProvider
         Route::middleware($this->routeMiddleware())
             ->prefix($this->routePrefix())
             ->name('sqlite-manager.')
-            ->group(__DIR__.'/routes/web.php');
+            ->group($this->packagePath('routes/web.php'));
+    }
+
+    private function packagePath(string $path = ''): string
+    {
+        return dirname(__DIR__).($path === '' ? '' : '/'.$path);
     }
 
     /**

@@ -11,8 +11,16 @@ return [
         'middleware' => ['web'],
     ],
 
+    'security' => [
+        'allowed_environments' => ['local', 'testing'],
+        'authorization_gate' => null,
+        'read_only' => env('SQLITE_MANAGER_READ_ONLY', false),
+    ],
+
     'tables' => [
         'show_laravel_tables' => env('SQLITE_MANAGER_SHOW_LARAVEL_TABLES', false),
+        'allow' => [],
+        'deny' => [],
         'laravel_table_patterns' => [
             'cache',
             'cache_locks',
@@ -24,6 +32,19 @@ return [
             'sessions',
             'telescope_*',
         ],
+    ],
+
+    'validation' => [
+        'rules' => [],
+    ],
+
+    'audit' => [
+        'enabled' => env('SQLITE_MANAGER_AUDIT_ENABLED', false),
+        'table' => 'laravel_sqlite_manager_audit_log',
+    ],
+
+    'exports' => [
+        'max_rows' => 5000,
     ],
 
     'pagination' => [

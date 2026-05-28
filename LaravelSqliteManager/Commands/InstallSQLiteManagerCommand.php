@@ -16,7 +16,7 @@ class InstallSQLiteManagerCommand extends Command
 
     public function handle(Filesystem $filesystem): int
     {
-        $source = __DIR__.'/../config/sqlite-manager.php';
+        $source = dirname(__DIR__, 2).'/config/sqlite-manager.php';
         $target = config_path('sqlite-manager.php');
 
         if (! $filesystem->exists($source)) {
@@ -89,6 +89,8 @@ class InstallSQLiteManagerCommand extends Command
             'SQLITE_MANAGER_ROUTES_ENABLED' => 'true',
             'SQLITE_MANAGER_ROUTE_PREFIX' => 'sqlite-manager',
             'SQLITE_MANAGER_SHOW_LARAVEL_TABLES' => 'false',
+            'SQLITE_MANAGER_READ_ONLY' => 'false',
+            'SQLITE_MANAGER_AUDIT_ENABLED' => 'false',
         ];
     }
 }

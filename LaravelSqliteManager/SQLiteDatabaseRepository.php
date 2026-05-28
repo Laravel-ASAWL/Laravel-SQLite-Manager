@@ -53,6 +53,7 @@ class SQLiteDatabaseRepository
         $tables = $statement->fetchAll(PDO::FETCH_COLUMN);
 
         $tables = array_values(array_filter($tables, is_string(...)));
+        $tables = array_values(array_filter($tables, $this->isAllowedTable(...)));
 
         if ($includeLaravelTables) {
             return $tables;
@@ -106,23 +107,21 @@ class SQLiteDatabaseRepository
     }
 
     /**
+     * @param  list<array{column?: string, operator?: string, value?: mixed}>  $filters
      * @return array{rows: list<array<string, mixed>>, total: int, page: int, per_page: int, last_page: int, columns: list<array{name: string, type: string, nullable: bool, default: mixed, primary: bool}>, primary_key: string|null}
      */
-    public function records(string $table, int $page = 1, int $perPage = 25, ?string $search = null): array
+    public function records(string $table, int $page = 1, int $perPage = 25, ?string $search = null, array $filters = [], ?string $sortColumn = null, string $sortDirection = 'asc'): array
     {
         $columns = $this->columns($table);
         $primaryKey = $this->primaryKey($table);
         $search = $this->normalizeSearch($search);
-        $where = $this->searchWhere($columns, $search);
+        $where = $this->where($columns, $search, $filters);
         $page = max(1, $page);
         $perPage = max(1, min(100, $perPage));
         $total = $this->countMatching($table, $where['sql'], $where['bindings']);
         $offset = ($page - 1) * $perPage;
         $sql = 'SELECT * FROM '.$this->quoteIdentifier($table).$where['sql'];
-
-        if ($primaryKey !== null) {
-            $sql .= ' ORDER BY '.$this->quoteIdentifier($primaryKey);
-        }
+        $sql .= $this->orderBy($columns, $primaryKey, $sortColumn, $sortDirection);
 
         $sql .= ' LIMIT :limit OFFSET :offset';
 
@@ -148,23 +147,66 @@ class SQLiteDatabaseRepository
     }
 
     /**
+     * @param  list<array{column?: string, operator?: string, value?: mixed}>  $filters
+     * @param  list<string>  $selectedKeys
+     * @return list<array<string, mixed>>
+     */
+    public function exportRows(string $table, ?string $search = null, array $filters = [], array $selectedKeys = [], ?string $sortColumn = null, string $sortDirection = 'asc'): array
+    {
+        $columns = $this->columns($table);
+        $primaryKey = $this->primaryKey($table);
+        $where = $this->where($columns, $this->normalizeSearch($search), $filters);
+        $bindings = $where['bindings'];
+        $clauses = $where['clauses'];
+
+        if ($selectedKeys !== [] && $primaryKey !== null) {
+            $placeholders = [];
+
+            foreach (array_values($selectedKeys) as $index => $key) {
+                $placeholder = 'selected_'.$index;
+                $placeholders[] = ':'.$placeholder;
+                $bindings[$placeholder] = $key;
+            }
+
+            $clauses[] = $this->quoteIdentifier($primaryKey).' IN ('.implode(', ', $placeholders).')';
+        }
+
+        $limit = $this->exportLimit();
+        $sql = 'SELECT * FROM '.$this->quoteIdentifier($table).$this->whereSql($clauses)
+            .$this->orderBy($columns, $primaryKey, $sortColumn, $sortDirection).' LIMIT :limit';
+        $statement = $this->pdo()->prepare($sql);
+
+        foreach ($bindings as $key => $value) {
+            $statement->bindValue($key, $value);
+        }
+
+        $statement->bindValue('limit', $limit, PDO::PARAM_INT);
+        $statement->execute();
+
+        return $this->rows($statement->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    /**
      * @param  array<string, mixed>  $attributes
      */
-    public function insert(string $table, array $attributes): void
+    public function insert(string $table, array $attributes): ?string
     {
         $columns = $this->writableColumns($table, $attributes, skipEmptyIntegerPrimaryKey: true);
+        $pdo = $this->pdo();
 
         if ($columns === []) {
-            $this->pdo()->exec('INSERT INTO '.$this->quoteIdentifier($table).' DEFAULT VALUES');
+            $pdo->exec('INSERT INTO '.$this->quoteIdentifier($table).' DEFAULT VALUES');
 
-            return;
+            return $pdo->lastInsertId() ?: null;
         }
 
         $sql = 'INSERT INTO '.$this->quoteIdentifier($table)
             .' ('.$this->columnList(array_keys($columns)).') VALUES ('.$this->placeholderList(array_keys($columns)).')';
 
-        $statement = $this->pdo()->prepare($sql);
+        $statement = $pdo->prepare($sql);
         $statement->execute($columns);
+
+        return $pdo->lastInsertId() ?: null;
     }
 
     /**
@@ -213,6 +255,83 @@ class SQLiteDatabaseRepository
             'DELETE FROM '.$this->quoteIdentifier($table).' WHERE '.$this->quoteIdentifier($primaryKey).' = :key'
         );
         $statement->execute(['key' => $key]);
+    }
+
+    /** @param list<string> $keys */
+    public function deleteMany(string $table, array $keys): int
+    {
+        $primaryKey = $this->requiredPrimaryKey($table);
+        $keys = array_values(array_filter($keys, fn (string $key): bool => $key !== ''));
+
+        if ($keys === []) {
+            return 0;
+        }
+
+        $placeholders = [];
+        $bindings = [];
+
+        foreach ($keys as $index => $key) {
+            $placeholder = 'key_'.$index;
+            $placeholders[] = ':'.$placeholder;
+            $bindings[$placeholder] = $key;
+        }
+
+        $statement = $this->pdo()->prepare(
+            'DELETE FROM '.$this->quoteIdentifier($table).' WHERE '.$this->quoteIdentifier($primaryKey).' IN ('.implode(', ', $placeholders).')'
+        );
+        $statement->execute($bindings);
+
+        return $statement->rowCount();
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $before
+     * @param  array<string, mixed>|null  $after
+     */
+    public function audit(string $action, string $table, ?string $recordKey = null, ?array $before = null, ?array $after = null): void
+    {
+        if (! (bool) config('sqlite-manager.audit.enabled', false)) {
+            return;
+        }
+
+        $auditTable = $this->auditTable();
+        $pdo = $this->pdo();
+        $pdo->exec('CREATE TABLE IF NOT EXISTS '.$this->quoteIdentifier($auditTable).' (id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT NOT NULL, table_name TEXT NOT NULL, record_key TEXT NULL, before_values TEXT NULL, after_values TEXT NULL, created_at TEXT NOT NULL)');
+
+        $statement = $pdo->prepare('INSERT INTO '.$this->quoteIdentifier($auditTable).' (action, table_name, record_key, before_values, after_values, created_at) VALUES (:action, :table_name, :record_key, :before_values, :after_values, :created_at)');
+        $statement->execute([
+            'action' => $action,
+            'table_name' => $table,
+            'record_key' => $recordKey,
+            'before_values' => $before === null ? null : json_encode($before, JSON_THROW_ON_ERROR),
+            'after_values' => $after === null ? null : json_encode($after, JSON_THROW_ON_ERROR),
+            'created_at' => now()->toDateTimeString(),
+        ]);
+    }
+
+    /** @return array{table: string, key: string}|null */
+    public function relationTarget(string $table, string $column, mixed $value): ?array
+    {
+        if (! is_scalar($value) || ! str_ends_with($column, '_id')) {
+            return null;
+        }
+
+        $base = substr($column, 0, -3);
+        $candidates = array_values(array_unique([$base.'s', $base.'es', $base]));
+
+        foreach ($candidates as $candidate) {
+            if ($candidate === $table || ! in_array($candidate, $this->tables(), true)) {
+                continue;
+            }
+
+            if ($this->primaryKey($candidate) === null) {
+                continue;
+            }
+
+            return ['table' => $candidate, 'key' => (string) $value];
+        }
+
+        return null;
     }
 
     public function primaryKey(string $table): ?string
@@ -277,6 +396,44 @@ class SQLiteDatabaseRepository
     {
         foreach ($this->laravelTablePatterns() as $pattern) {
             $pattern = str_replace('\\*', '.*', preg_quote($pattern, '/'));
+
+            if (preg_match('/^'.$pattern.'$/', $table) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isAllowedTable(string $table): bool
+    {
+        $allow = $this->configuredTablePatterns('allow');
+        $deny = $this->configuredTablePatterns('deny');
+
+        if ($allow !== [] && ! $this->matchesAnyPattern($table, $allow)) {
+            return false;
+        }
+
+        return ! $this->matchesAnyPattern($table, $deny);
+    }
+
+    /** @return list<string> */
+    private function configuredTablePatterns(string $key): array
+    {
+        $patterns = config('sqlite-manager.tables.'.$key, []);
+
+        if (! is_array($patterns)) {
+            return [];
+        }
+
+        return array_values(array_filter($patterns, is_string(...)));
+    }
+
+    /** @param list<string> $patterns */
+    private function matchesAnyPattern(string $table, array $patterns): bool
+    {
+        foreach ($patterns as $pattern) {
+            $pattern = str_replace('\*', '.*', preg_quote($pattern, '/'));
 
             if (preg_match('/^'.$pattern.'$/', $table) === 1) {
                 return true;
@@ -352,14 +509,37 @@ class SQLiteDatabaseRepository
 
     /**
      * @param  list<array{name: string, type: string, nullable: bool, default: mixed, primary: bool}>  $columns
-     * @return array{sql: string, bindings: array<string, string>}
+     * @param  list<array{column?: string, operator?: string, value?: mixed}>  $filters
+     * @return array{sql: string, clauses: list<string>, bindings: array<string, mixed>}
      */
-    private function searchWhere(array $columns, ?string $search): array
+    private function where(array $columns, ?string $search, array $filters): array
     {
+        $clauses = [];
+        $bindings = [];
+
         if ($search === null) {
-            return ['sql' => '', 'bindings' => []];
+            $searchWhere = ['clauses' => [], 'bindings' => []];
+        } else {
+            $searchWhere = $this->searchWhere($columns, $search);
         }
 
+        $clauses = [...$clauses, ...$searchWhere['clauses']];
+        $bindings = [...$bindings, ...$searchWhere['bindings']];
+
+        foreach ($this->filterWhere($columns, $filters) as $filter) {
+            $clauses[] = $filter['sql'];
+            $bindings = [...$bindings, ...$filter['bindings']];
+        }
+
+        return ['sql' => $this->whereSql($clauses), 'clauses' => $clauses, 'bindings' => $bindings];
+    }
+
+    /**
+     * @param  list<array{name: string, type: string, nullable: bool, default: mixed, primary: bool}>  $columns
+     * @return array{clauses: list<string>, bindings: array<string, string>}
+     */
+    private function searchWhere(array $columns, string $search): array
+    {
         $conditions = [];
         $bindings = [];
         $needle = '%'.$this->escapeLike($search).'%';
@@ -371,9 +551,100 @@ class SQLiteDatabaseRepository
         }
 
         return [
-            'sql' => ' WHERE ('.implode(' OR ', $conditions).')',
+            'clauses' => ['('.implode(' OR ', $conditions).')'],
             'bindings' => $bindings,
         ];
+    }
+
+    /**
+     * @param  list<array{name: string, type: string, nullable: bool, default: mixed, primary: bool}>  $columns
+     * @param  list<array{column?: string, operator?: string, value?: mixed}>  $filters
+     * @return list<array{sql: string, bindings: array<string, mixed>}>
+     */
+    private function filterWhere(array $columns, array $filters): array
+    {
+        $available = array_map(fn (array $column): string => $column['name'], $columns);
+        $where = [];
+
+        foreach (array_values($filters) as $index => $filter) {
+            $column = $filter['column'] ?? null;
+            $operator = $filter['operator'] ?? 'contains';
+            $value = $filter['value'] ?? null;
+
+            if (! is_string($column) || ! in_array($column, $available, true) || ! is_string($operator)) {
+                continue;
+            }
+
+            $quotedColumn = $this->quoteIdentifier($column);
+            $placeholder = 'filter_'.$index;
+
+            if (in_array($operator, ['is_null', 'is_not_null'], true)) {
+                $where[] = ['sql' => $quotedColumn.' IS '.($operator === 'is_null' ? '' : 'NOT ').'NULL', 'bindings' => []];
+                continue;
+            }
+
+            if (! is_scalar($value) && $value !== null) {
+                continue;
+            }
+
+            $value = (string) $value;
+
+            if ($value === '') {
+                continue;
+            }
+
+            $bindings = [$placeholder => $value];
+            $castColumn = 'CAST('.$quotedColumn.' AS TEXT)';
+
+            $where[] = match ($operator) {
+                'equals' => ['sql' => $quotedColumn.' = :'.$placeholder, 'bindings' => $bindings],
+                'not_equals' => ['sql' => $quotedColumn.' != :'.$placeholder, 'bindings' => $bindings],
+                'gt' => ['sql' => $quotedColumn.' > :'.$placeholder, 'bindings' => $bindings],
+                'gte' => ['sql' => $quotedColumn.' >= :'.$placeholder, 'bindings' => $bindings],
+                'lt' => ['sql' => $quotedColumn.' < :'.$placeholder, 'bindings' => $bindings],
+                'lte' => ['sql' => $quotedColumn.' <= :'.$placeholder, 'bindings' => $bindings],
+                'starts_with' => ['sql' => $castColumn." LIKE :{$placeholder} ESCAPE '\\'", 'bindings' => [$placeholder => $this->escapeLike($value).'%']],
+                'ends_with' => ['sql' => $castColumn." LIKE :{$placeholder} ESCAPE '\\'", 'bindings' => [$placeholder => '%'.$this->escapeLike($value)]],
+                default => ['sql' => $castColumn." LIKE :{$placeholder} ESCAPE '\\'", 'bindings' => [$placeholder => '%'.$this->escapeLike($value).'%']],
+            };
+        }
+
+        return $where;
+    }
+
+    /** @param list<string> $clauses */
+    private function whereSql(array $clauses): string
+    {
+        return $clauses === [] ? '' : ' WHERE '.implode(' AND ', $clauses);
+    }
+
+    /**
+     * @param  list<array{name: string, type: string, nullable: bool, default: mixed, primary: bool}>  $columns
+     */
+    private function orderBy(array $columns, ?string $primaryKey, ?string $sortColumn, string $sortDirection): string
+    {
+        $available = array_map(fn (array $column): string => $column['name'], $columns);
+        $column = is_string($sortColumn) && in_array($sortColumn, $available, true) ? $sortColumn : $primaryKey;
+
+        if ($column === null) {
+            return '';
+        }
+
+        return ' ORDER BY '.$this->quoteIdentifier($column).' '.(mb_strtolower($sortDirection) === 'desc' ? 'DESC' : 'ASC');
+    }
+
+    private function exportLimit(): int
+    {
+        $limit = config('sqlite-manager.exports.max_rows', 5000);
+
+        return is_numeric($limit) ? max(1, (int) $limit) : 5000;
+    }
+
+    private function auditTable(): string
+    {
+        $table = config('sqlite-manager.audit.table', 'laravel_sqlite_manager_audit_log');
+
+        return is_string($table) && $table !== '' ? $table : 'laravel_sqlite_manager_audit_log';
     }
 
     private function escapeLike(string $value): string

@@ -1,18 +1,18 @@
 :root {
     color-scheme: light;
-    --pulse-bg: #f7f8fb;
-    --pulse-card: #ffffff;
-    --pulse-card-soft: #fffafa;
-    --pulse-coral: #ff2d20;
-    --pulse-coral-dark: #dc2626;
-    --pulse-coral-soft: #fff1f0;
-    --pulse-ink: #111827;
-    --pulse-line: #e8e8ee;
-    --pulse-line-strong: #d9d9e3;
-    --pulse-muted: #747481;
-    --pulse-sidebar: #ffffff;
-    --pulse-sidebar-active: #fff1f0;
-    --pulse-success: #059669;
+    --manager-bg: #f7f8fb;
+    --manager-card: #ffffff;
+    --manager-card-soft: #fffafa;
+    --manager-coral: #ff2d20;
+    --manager-coral-dark: #dc2626;
+    --manager-coral-soft: #fff1f0;
+    --manager-ink: #111827;
+    --manager-line: #e8e8ee;
+    --manager-line-strong: #d9d9e3;
+    --manager-muted: #747481;
+    --manager-sidebar: #ffffff;
+    --manager-sidebar-active: #fff1f0;
+    --manager-success: #059669;
 }
 
 * {
@@ -22,8 +22,8 @@
 body {
     background:
         radial-gradient(circle at top right, rgb(255 45 32 / 8%), transparent 32rem),
-        var(--pulse-bg);
-    color: var(--pulse-ink);
+        var(--manager-bg);
+    color: var(--manager-ink);
     font-family:
         Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     font-size: 13px;
@@ -34,9 +34,9 @@ body::before {
     align-items: center;
     background: rgb(255 255 255 / 82%);
     backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--pulse-line);
-    color: var(--pulse-muted);
-    content: 'SQLite Manager Pulse';
+    border-bottom: 1px solid var(--manager-line);
+    color: var(--manager-muted);
+    content: 'SQLite Manager';
     display: flex;
     font-size: 12px;
     font-weight: 800;
@@ -51,12 +51,12 @@ main {
 }
 
 a {
-    color: var(--pulse-coral);
+    color: var(--manager-coral);
     text-decoration: none;
 }
 
 a:hover {
-    color: var(--pulse-coral-dark);
+    color: var(--manager-coral-dark);
 }
 
 h1,
@@ -66,7 +66,7 @@ p {
 }
 
 h1 {
-    color: var(--pulse-ink);
+    color: var(--manager-ink);
     font-size: 22px;
     font-weight: 800;
     letter-spacing: -0.035em;
@@ -82,7 +82,7 @@ h2,
 
 code {
     background: #fbfbfd;
-    border: 1px solid var(--pulse-line);
+    border: 1px solid var(--manager-line);
     border-radius: 8px;
     color: #374151;
     display: inline-block;
@@ -99,7 +99,7 @@ dl {
 }
 
 dt {
-    color: var(--pulse-muted);
+    color: var(--manager-muted);
     font-weight: 800;
 }
 
@@ -115,8 +115,8 @@ table {
 
 th {
     background: #fcfcfd !important;
-    border-bottom: 1px solid var(--pulse-line-strong) !important;
-    color: var(--pulse-muted) !important;
+    border-bottom: 1px solid var(--manager-line-strong) !important;
+    color: var(--manager-muted) !important;
     font-size: 11px;
     font-weight: 900;
     letter-spacing: 0.04em;
@@ -133,7 +133,7 @@ td {
 }
 
 .table > :not(caption) > * > * {
-    border-bottom-color: var(--pulse-line);
+    border-bottom-color: var(--manager-line);
     padding: 0.72rem 0.8rem;
 }
 
@@ -142,7 +142,7 @@ td {
 }
 
 .table-hover > tbody > tr:hover > * {
-    --bs-table-bg-state: var(--pulse-coral-soft);
+    --bs-table-bg-state: var(--manager-coral-soft);
 }
 
 label {
@@ -154,7 +154,7 @@ label {
 small,
 .muted,
 .text-body-secondary {
-    color: var(--pulse-muted) !important;
+    color: var(--manager-muted) !important;
 }
 
 .btn {
@@ -166,28 +166,28 @@ small,
 }
 
 .btn-primary {
-    --bs-btn-bg: var(--pulse-coral);
-    --bs-btn-border-color: var(--pulse-coral);
-    --bs-btn-hover-bg: var(--pulse-coral-dark);
-    --bs-btn-hover-border-color: var(--pulse-coral-dark);
-    --bs-btn-active-bg: var(--pulse-coral-dark);
-    --bs-btn-active-border-color: var(--pulse-coral-dark);
+    --bs-btn-bg: var(--manager-coral);
+    --bs-btn-border-color: var(--manager-coral);
+    --bs-btn-hover-bg: var(--manager-coral-dark);
+    --bs-btn-hover-border-color: var(--manager-coral-dark);
+    --bs-btn-active-bg: var(--manager-coral-dark);
+    --bs-btn-active-border-color: var(--manager-coral-dark);
     box-shadow: 0 10px 20px rgb(255 45 32 / 18%);
 }
 
 .btn-outline-secondary {
     --bs-btn-color: #374151;
-    --bs-btn-border-color: var(--pulse-line-strong);
+    --bs-btn-border-color: var(--manager-line-strong);
     --bs-btn-hover-bg: #fff7f6;
     --bs-btn-hover-border-color: #ffb4ae;
-    --bs-btn-hover-color: var(--pulse-coral-dark);
+    --bs-btn-hover-color: var(--manager-coral-dark);
     background: #fff;
 }
 
 .form-control,
 .form-select {
-    border-color: var(--pulse-line-strong);
-    color: var(--pulse-ink);
+    border-color: var(--manager-line-strong);
+    color: var(--manager-ink);
     font-size: 13px;
 }
 
@@ -204,7 +204,7 @@ textarea.form-control {
 
 .form-control:focus,
 .form-select:focus {
-    border-color: var(--pulse-coral);
+    border-color: var(--manager-coral);
     box-shadow: 0 0 0 0.18rem rgb(255 45 32 / 14%);
 }
 
@@ -242,9 +242,9 @@ textarea.form-control {
 }
 
 .explorer {
-    background: var(--pulse-sidebar);
-    border-bottom: 1px solid var(--pulse-line);
-    color: var(--pulse-ink);
+    background: var(--manager-sidebar);
+    border-bottom: 1px solid var(--manager-line);
+    color: var(--manager-ink);
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -252,7 +252,7 @@ textarea.form-control {
 
 .explorer-head {
     background: linear-gradient(180deg, #fff, #fff8f7);
-    border-bottom: 1px solid var(--pulse-line);
+    border-bottom: 1px solid var(--manager-line);
     display: grid;
     gap: 4px;
     padding: 16px;
@@ -260,7 +260,7 @@ textarea.form-control {
 
 .brand {
     align-items: center;
-    color: var(--pulse-ink);
+    color: var(--manager-ink);
     display: inline-flex;
     font-size: 15px;
     font-weight: 900;
@@ -270,7 +270,7 @@ textarea.form-control {
 .brand::before {
     background:
         radial-gradient(circle at 50% 50%, #fff 0 22%, transparent 23%),
-        linear-gradient(135deg, #ff7a70, var(--pulse-coral));
+        linear-gradient(135deg, #ff7a70, var(--manager-coral));
     border-radius: 999px;
     box-shadow: 0 0 0 5px rgb(255 45 32 / 10%);
     content: '';
@@ -280,12 +280,12 @@ textarea.form-control {
 }
 
 .brand:hover {
-    color: var(--pulse-coral-dark);
+    color: var(--manager-coral-dark);
 }
 
 .explorer-head span,
 .explorer-title {
-    color: var(--pulse-muted);
+    color: var(--manager-muted);
     font-size: 11px;
     font-weight: 900;
     letter-spacing: 0.08em;
@@ -303,8 +303,8 @@ textarea.form-control {
 .explorer-summary {
     align-items: center;
     background: #fff;
-    border-top: 1px solid var(--pulse-line);
-    color: var(--pulse-ink);
+    border-top: 1px solid var(--manager-line);
+    color: var(--manager-ink);
     cursor: pointer;
     display: grid;
     gap: 10px;
@@ -318,7 +318,7 @@ textarea.form-control {
 }
 
 .explorer-summary::after {
-    color: var(--pulse-coral);
+    color: var(--manager-coral);
     content: 'v';
     font-size: 11px;
     font-weight: 900;
@@ -329,7 +329,7 @@ textarea.form-control {
 }
 
 .explorer-summary span {
-    color: var(--pulse-muted);
+    color: var(--manager-muted);
     font-size: 11px;
     font-weight: 900;
     letter-spacing: 0.08em;
@@ -337,7 +337,7 @@ textarea.form-control {
 }
 
 .explorer-summary strong {
-    color: var(--pulse-ink);
+    color: var(--manager-ink);
     font-size: 13px;
     font-weight: 900;
     max-width: 42vw;
@@ -372,12 +372,12 @@ textarea.form-control {
 
 .explorer-item:hover,
 .explorer-item.active {
-    background: var(--pulse-sidebar-active) !important;
-    color: var(--pulse-coral-dark) !important;
+    background: var(--manager-sidebar-active) !important;
+    color: var(--manager-coral-dark) !important;
 }
 
 .explorer-item.active {
-    box-shadow: inset 4px 0 0 var(--pulse-coral);
+    box-shadow: inset 4px 0 0 var(--manager-coral);
 }
 
 .explorer-name {
@@ -390,23 +390,23 @@ textarea.form-control {
     background: #fff;
     border: 1px solid #ffd1cd;
     border-radius: 999px;
-    color: var(--pulse-coral-dark);
+    color: var(--manager-coral-dark);
     font-size: 11px;
     font-weight: 900;
     padding: 2px 8px;
 }
 
 .explorer-empty {
-    color: var(--pulse-muted);
+    color: var(--manager-muted);
     padding: 8px;
 }
 
 .object-icon {
     align-items: center;
-    background: var(--pulse-coral-soft);
+    background: var(--manager-coral-soft);
     border: 1px solid #ffd1cd;
     border-radius: 999px;
-    color: var(--pulse-coral-dark);
+    color: var(--manager-coral-dark);
     display: inline-flex;
     font-size: 11px;
     font-weight: 900;
@@ -427,7 +427,7 @@ textarea.form-control {
 .toolbar {
     align-items: flex-start;
     background: rgb(255 255 255 / 88%);
-    border: 1px solid var(--pulse-line) !important;
+    border: 1px solid var(--manager-line) !important;
     border-radius: 22px !important;
     display: flex;
     flex-direction: column;
@@ -442,8 +442,8 @@ textarea.form-control {
 }
 
 .panel {
-    background: var(--pulse-card);
-    border: 1px solid var(--pulse-line) !important;
+    background: var(--manager-card);
+    border: 1px solid var(--manager-line) !important;
     border-radius: 22px !important;
     box-shadow: 0 18px 50px rgb(17 24 39 / 5%) !important;
     margin-bottom: 14px;
@@ -471,7 +471,7 @@ textarea.form-control {
 
 .laravel-tables-toggle {
     align-items: center;
-    color: var(--pulse-muted);
+    color: var(--manager-muted);
     display: flex;
     font-size: 12px;
     font-weight: 800;
@@ -485,8 +485,8 @@ textarea.form-control {
 }
 
 .laravel-tables-toggle .form-check-input:checked {
-    background-color: var(--pulse-coral);
-    border-color: var(--pulse-coral);
+    background-color: var(--manager-coral);
+    border-color: var(--manager-coral);
 }
 
 .section-heading,
@@ -514,13 +514,13 @@ textarea.form-control {
 
 .card-header {
     background: #fff;
-    border-bottom: 1px solid var(--pulse-line);
+    border-bottom: 1px solid var(--manager-line);
 }
 
 .search-form {
     align-items: stretch;
-    background: var(--pulse-card-soft);
-    border-bottom: 1px solid var(--pulse-line);
+    background: var(--manager-card-soft);
+    border-bottom: 1px solid var(--manager-line);
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -535,7 +535,7 @@ textarea.form-control {
 }
 
 .per-page-control span {
-    color: var(--pulse-muted);
+    color: var(--manager-muted);
     font-size: 11px;
     font-weight: 900;
     letter-spacing: 0.06em;
@@ -548,7 +548,7 @@ textarea.form-control {
 
 .column-picker summary {
     background: #fff;
-    border: 1px solid var(--pulse-line-strong);
+    border: 1px solid var(--manager-line-strong);
     border-radius: 999px;
     color: #374151;
     cursor: pointer;
@@ -564,7 +564,7 @@ textarea.form-control {
 
 .column-options {
     background: #fff;
-    border: 1px solid var(--pulse-line);
+    border: 1px solid var(--manager-line);
     border-radius: 16px;
     box-shadow: 0 18px 45px rgb(17 24 39 / 14%);
     display: grid;
@@ -591,11 +591,11 @@ textarea.form-control {
 }
 
 .column-options label:hover {
-    background: var(--pulse-coral-soft);
+    background: var(--manager-coral-soft);
 }
 
 .column-options input[type='checkbox'] {
-    accent-color: var(--pulse-coral);
+    accent-color: var(--manager-coral);
     align-self: center;
     flex: 0 0 auto;
     height: 14px;
@@ -605,7 +605,7 @@ textarea.form-control {
 }
 
 .eyebrow {
-    color: var(--pulse-coral);
+    color: var(--manager-coral);
     font-size: 11px;
     font-weight: 900;
     letter-spacing: 0.12em;
@@ -615,9 +615,9 @@ textarea.form-control {
 
 .object-tile {
     align-items: center;
-    border-color: var(--pulse-line) !important;
+    border-color: var(--manager-line) !important;
     border-radius: 16px !important;
-    color: var(--pulse-ink) !important;
+    color: var(--manager-ink) !important;
     display: grid;
     gap: 12px;
     grid-template-columns: 26px minmax(0, 1fr);
@@ -625,7 +625,7 @@ textarea.form-control {
 }
 
 .object-tile:hover {
-    background: var(--pulse-coral-soft) !important;
+    background: var(--manager-coral-soft) !important;
     border-color: #ffd1cd !important;
 }
 
@@ -647,6 +647,50 @@ textarea.form-control {
     margin: 14px;
 }
 
+.advanced-filters,
+.bulk-actions {
+    border-top: 1px solid var(--manager-line);
+    display: grid;
+    gap: 10px;
+    padding: 12px 14px;
+}
+
+.advanced-filters-head,
+.bulk-actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: space-between;
+}
+
+.filter-row {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: minmax(140px, 1fr);
+}
+
+.json-editor {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+    min-height: 180px;
+}
+
+.json-preview {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+    margin: 0;
+    max-width: 36rem;
+    white-space: pre-wrap;
+}
+
+.table-sort {
+    background: transparent;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    font-weight: 800;
+    padding: 0;
+}
+
 .actions {
     align-items: center;
     display: flex;
@@ -661,7 +705,7 @@ textarea.form-control {
 }
 
 .breadcrumb-item.active {
-    color: var(--pulse-muted);
+    color: var(--manager-muted);
 }
 
 .form-panel {
@@ -680,15 +724,15 @@ textarea.form-control {
 
 .empty,
 .empty-state {
-    color: var(--pulse-muted);
+    color: var(--manager-muted);
     padding: 22px;
     text-align: center;
 }
 
 .pagination-shell {
     align-items: center;
-    background: var(--pulse-card-soft);
-    border-top: 1px solid var(--pulse-line);
+    background: var(--manager-card-soft);
+    border-top: 1px solid var(--manager-line);
     display: grid;
     gap: 10px;
     justify-content: stretch;
@@ -696,7 +740,7 @@ textarea.form-control {
 }
 
 .pagination-shell > span {
-    color: var(--pulse-muted);
+    color: var(--manager-muted);
     font-weight: 900;
     text-align: center;
 }
@@ -716,7 +760,7 @@ textarea.form-control {
 
 @media (min-width: 640px) {
     body::before {
-        content: 'SQLite Manager  |  Pulse inspired database monitor';
+        content: 'SQLite Manager | Database monitor';
         padding: 0 24px;
     }
 
@@ -731,6 +775,10 @@ textarea.form-control {
 
     dd {
         margin-bottom: 0;
+    }
+
+    .filter-row {
+        grid-template-columns: minmax(130px, 1fr) minmax(140px, 1fr) minmax(160px, 2fr) auto;
     }
 
     .workspace {
@@ -822,7 +870,7 @@ textarea.form-control {
 
     .explorer {
         border-bottom: 0;
-        border-right: 1px solid var(--pulse-line);
+        border-right: 1px solid var(--manager-line);
         height: 100%;
         max-height: none;
         overflow: hidden;

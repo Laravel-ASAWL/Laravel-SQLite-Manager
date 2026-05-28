@@ -2,6 +2,29 @@
 
 All notable changes to `asawl/laravel-sqlite-manager` will be documented in this file.
 
+## 2.0.0 - 2026-05-28
+
+### Added
+
+- Added environment and gate based access controls, read-only mode, and table allow/deny lists.
+- Added CSV and JSON exports for current filters and selected rows.
+- Added bulk delete actions for selected records.
+- Added optional audit logging for create, update, delete, and bulk delete operations.
+- Added configurable validation rules for table forms.
+- Added advanced column filters and sortable table headers.
+- Added conventional `*_id` relationship links to related tables.
+- Added expanded JSON/TEXT editing and JSON previews.
+- Added GitHub Actions test matrix for Laravel 13 on PHP 8.3 and 8.4.
+
+### Changed
+
+- Updated root development dependencies and package dependency constraints from Laravel 12 to Laravel 13.
+- Raised the minimum PHP requirement to 8.3 to match Laravel 13.
+- Updated package metadata and README references for Laravel 13 support.
+- Removed third-party theme wording from the package UI and stylesheet internals.
+- Added nullable field visibility control to the edit record form.
+- Moved package `config`, `resources`, `routes`, and `tests` directories to the package root.
+
 ## 1.0.0 - 2026-05-28
 
 Initial release.

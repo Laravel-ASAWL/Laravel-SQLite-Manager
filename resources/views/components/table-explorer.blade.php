@@ -8,7 +8,7 @@
 <aside class="explorer border-0 rounded-0">
     <div class="explorer-head">
         <a class="brand" href="{{ route('sqlite-manager.index') }}">SQLite Manager</a>
-        <span>Database pulse</span>
+        <span>Database manager</span>
     </div>
     <details class="explorer-menu" open>
         <summary class="explorer-summary">

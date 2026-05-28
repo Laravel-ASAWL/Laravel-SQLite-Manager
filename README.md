@@ -1,13 +1,13 @@
 # Laravel SQLite Manager
 
-Livewire-powered SQLite database manager for Laravel 12 applications.
+Livewire-powered SQLite database manager for Laravel 13 applications.
 
 This package adds a small web UI for browsing and editing records in a configured SQLite database. It is intended for local development, internal tooling, and controlled admin environments.
 
 ## Requirements
 
-- PHP 8.2 or higher
-- Laravel 12
+- PHP 8.3 or higher
+- Laravel 13
 - Livewire 3
 - PHP extensions: `mbstring`, `pdo`, `pdo_sqlite`
 
@@ -44,6 +44,8 @@ SQLITE_MANAGER_DATABASE_PATH="database/database.sqlite"
 SQLITE_MANAGER_ROUTES_ENABLED=true
 SQLITE_MANAGER_ROUTE_PREFIX=sqlite-manager
 SQLITE_MANAGER_SHOW_LARAVEL_TABLES=false
+SQLITE_MANAGER_READ_ONLY=false
+SQLITE_MANAGER_AUDIT_ENABLED=false
 ```
 
 Existing values are preserved and are not duplicated.
@@ -62,8 +64,16 @@ return [
         'middleware' => ['web'],
     ],
 
+    'security' => [
+        'allowed_environments' => ['local', 'testing'],
+        'authorization_gate' => null,
+        'read_only' => env('SQLITE_MANAGER_READ_ONLY', false),
+    ],
+
     'tables' => [
         'show_laravel_tables' => env('SQLITE_MANAGER_SHOW_LARAVEL_TABLES', false),
+        'allow' => [],
+        'deny' => [],
         'laravel_table_patterns' => [
             'cache',
             'cache_locks',
@@ -75,6 +85,19 @@ return [
             'sessions',
             'telescope_*',
         ],
+    ],
+
+    'validation' => [
+        'rules' => [],
+    ],
+
+    'audit' => [
+        'enabled' => env('SQLITE_MANAGER_AUDIT_ENABLED', false),
+        'table' => 'laravel_sqlite_manager_audit_log',
+    ],
+
+    'exports' => [
+        'max_rows' => 5000,
     ],
 
     'pagination' => [
@@ -97,13 +120,21 @@ If you changed `SQLITE_MANAGER_ROUTE_PREFIX`, use that path instead.
 ## Features
 
 - Browse SQLite tables and records.
-- Search across table columns.
+- Search across table columns with advanced column filters and sortable headers.
 - Create, edit, and delete records.
+- Optional read-only mode for inspection-only access.
+- Allowlist and denylist controls for exposed tables.
+- Export filtered or selected rows to CSV or JSON.
+- Bulk delete selected rows.
+- Optional audit log for create, update, delete, and bulk delete operations.
+- Configurable validation rules per table column.
+- Conventional `*_id` relationship links to related tables.
 - Edit and delete records when the table has a single-column primary key.
 - Choose visible columns per table.
 - Persist UI preferences in cookies.
 - Hide Laravel framework tables by default.
-- Toggle nullable fields in the create form.
+- Toggle nullable fields in create and edit forms.
+- Expanded JSON/TEXT editing and JSON previews.
 - Responsive Livewire UI with packaged CSS.
 
 ## Security
@@ -115,6 +146,16 @@ Example:
 ```php
 'routes' => [
     'middleware' => ['web', 'auth'],
+],
+
+'security' => [
+    'authorization_gate' => 'use-sqlite-manager',
+    'read_only' => true,
+],
+
+'tables' => [
+    'allow' => ['users', 'orders'],
+    'deny' => ['password_reset_tokens'],
 ],
 ```
 

@@ -33,7 +33,7 @@ afterEach(function (): void {
 test('it installs the sqlite manager config into a laravel project', function (): void {
     $this->artisan('sqlite-manager:install')
         ->expectsOutputToContain('Published SQLite Manager config')
-        ->expectsOutputToContain('Registered 4 SQLite Manager environment variables')
+        ->expectsOutputToContain('Registered 6 SQLite Manager environment variables')
         ->expectsOutputToContain('Laravel SQLite Manager is installed')
         ->assertSuccessful();
 
@@ -42,14 +42,16 @@ test('it installs the sqlite manager config into a laravel project', function ()
         ->and(File::get($this->envPath))->toContain('SQLITE_MANAGER_DATABASE_PATH="database/database.sqlite"')
         ->and(File::get($this->envPath))->toContain('SQLITE_MANAGER_ROUTES_ENABLED=true')
         ->and(File::get($this->envPath))->toContain('SQLITE_MANAGER_ROUTE_PREFIX=sqlite-manager')
-        ->and(File::get($this->envPath))->toContain('SQLITE_MANAGER_SHOW_LARAVEL_TABLES=false');
+        ->and(File::get($this->envPath))->toContain('SQLITE_MANAGER_SHOW_LARAVEL_TABLES=false')
+        ->and(File::get($this->envPath))->toContain('SQLITE_MANAGER_READ_ONLY=false')
+        ->and(File::get($this->envPath))->toContain('SQLITE_MANAGER_AUDIT_ENABLED=false');
 });
 
 test('it does not overwrite existing sqlite manager environment variables', function (): void {
     File::put($this->envPath, "APP_NAME=Laravel\nSQLITE_MANAGER_ROUTE_PREFIX=admin/sqlite\n");
 
     $this->artisan('sqlite-manager:install')
-        ->expectsOutputToContain('Registered 3 SQLite Manager environment variables')
+        ->expectsOutputToContain('Registered 5 SQLite Manager environment variables')
         ->assertSuccessful();
 
     expect(File::get($this->envPath))->toContain('SQLITE_MANAGER_ROUTE_PREFIX=admin/sqlite')
@@ -63,6 +65,8 @@ test('it skips environment registration when variables already exist', function 
         'SQLITE_MANAGER_ROUTES_ENABLED=false',
         'SQLITE_MANAGER_ROUTE_PREFIX=admin/sqlite',
         'SQLITE_MANAGER_SHOW_LARAVEL_TABLES=true',
+        'SQLITE_MANAGER_READ_ONLY=true',
+        'SQLITE_MANAGER_AUDIT_ENABLED=true',
         '',
     ]));
 
@@ -70,7 +74,7 @@ test('it skips environment registration when variables already exist', function 
         ->expectsOutputToContain('environment variables are already registered')
         ->assertSuccessful();
 
-    expect(mb_substr_count(File::get($this->envPath), 'SQLITE_MANAGER_'))->toBe(4);
+    expect(mb_substr_count(File::get($this->envPath), 'SQLITE_MANAGER_'))->toBe(6);
 });
 
 test('it does not overwrite an existing config without force', function (): void {
