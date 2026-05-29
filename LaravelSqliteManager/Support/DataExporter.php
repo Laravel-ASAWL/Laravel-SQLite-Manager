@@ -9,7 +9,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DataExporter
 {
-    public function __construct(private readonly SQLiteManagerRepository $repository) {}
+    public function __construct(private readonly SQLiteManagerRepository $sqLiteManagerRepository) {}
 
     /**
      * @param  list<array{column: string, operator: string, value: string}>  $filters
@@ -17,7 +17,7 @@ class DataExporter
      */
     public function download(string $table, string $format, ?string $search = null, array $filters = [], array $selectedKeys = [], ?string $sortColumn = null, string $sortDirection = 'asc', bool $includeSoftDeleted = false): StreamedResponse
     {
-        $rows = $this->repository->exportRows($table, $search, $filters, $selectedKeys, $sortColumn, $sortDirection, $includeSoftDeleted);
+        $rows = $this->sqLiteManagerRepository->exportRows($table, $search, $filters, $selectedKeys, $sortColumn, $sortDirection, $includeSoftDeleted);
         $format = $format === 'json' ? 'json' : 'csv';
         $filename = $table.'-'.now()->format('Ymd-His').'.'.$format;
 

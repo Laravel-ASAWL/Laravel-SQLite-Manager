@@ -17,17 +17,20 @@ class FormValidator
             return [];
         }
 
-        $rules = config('sqlite-manager.validation.rules.'.$table, []);
+        $configured = config('sqlite-manager.validation.rules.'.$table, []);
 
-        if (! is_array($rules)) {
+        if (! is_array($configured)) {
             return [];
         }
 
+        /** @var array<string, list<string>|string> $validationRules */
         $validationRules = [];
 
-        foreach ($rules as $column => $rule) {
+        foreach ($configured as $column => $rule) {
             if (is_string($column) && (is_string($rule) || is_array($rule))) {
-                $validationRules['form.'.$column] = $rule;
+                $validationRules['form.'.$column] = is_array($rule)
+                    ? array_values(array_filter($rule, is_string(...)))
+                    : $rule;
             }
         }
 
@@ -48,8 +51,10 @@ class FormValidator
             }
 
             $value = $form[$column['name']] ?? null;
-
-            if ($value === null || $value === '') {
+            if ($value === null) {
+                continue;
+            }
+            if ($value === '') {
                 continue;
             }
 

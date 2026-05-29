@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace Asawl\LaravelSqliteManager\Commands;
 
+use Illuminate\Console\Attributes\Description;
+use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
 
-class SQLiteManagerTestCommand extends Command
-{
-    protected $description = 'Copy SQLite Manager test migrations into the current Laravel project and run them.';
-
-    protected $signature = 'sqlite-manager:test
+#[Description('Copy SQLite Manager test migrations into the current Laravel project and run them.')]
+#[Signature('sqlite-manager:create-tests-table
         {--force : Overwrite existing SQLite Manager test migration files and force the migration run.}
-        {--no-migrate : Copy the test migration files without running migrations.}';
-
+        {--no-migrate : Copy the test migration files without running migrations.}')]
+class SQLiteManagerCreateTestsTableCommand extends Command
+{
     public function handle(Filesystem $filesystem): int
     {
         $copied = $this->copyMigrations($filesystem);
@@ -40,7 +40,9 @@ class SQLiteManagerTestCommand extends Command
     {
         $sourceDirectory = dirname(__DIR__, 2).'/database/migrations';
         $targetDirectory = database_path('migrations');
-        $migrations = $filesystem->glob($sourceDirectory.'/create_test_*.php.stub') ?: [];
+
+        /** @var list<string> $migrations */
+        $migrations = $filesystem->glob($sourceDirectory.'/create_tests_*.php.stub') ?: [];
 
         $filesystem->ensureDirectoryExists($targetDirectory);
         sort($migrations);
@@ -53,9 +55,11 @@ class SQLiteManagerTestCommand extends Command
 
         foreach ($migrations as $source) {
             $migration = basename($source);
-            $targetName = substr($migration, 0, -5);
+            $targetName = mb_substr($migration, 0, -5);
+
+            /** @var list<string> $existingTargets */
             $existingTargets = $filesystem->glob($targetDirectory.'/*_'.$targetName) ?: [];
-            $target = $existingTargets[0] ?? $targetDirectory.'/'.date('Y_m_d_His').'_'.$targetName;
+            $target = $existingTargets !== [] ? $existingTargets[0] : $targetDirectory.'/'.date('Y_m_d_His').'_'.$targetName;
 
             if (! $filesystem->exists($source)) {
                 $this->components->error("The SQLite Manager test migration stub could not be found: {$migration}");

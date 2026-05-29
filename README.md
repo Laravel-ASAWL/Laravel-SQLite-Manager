@@ -55,7 +55,7 @@ Existing values are preserved and are not duplicated.
 You can publish and run relationship test migrations for validating `*_id` links and relationship selects:
 
 ```bash
-php artisan sqlite-manager:test
+php artisan sqlite-manager:create-test-table
 ```
 
 The command copies package test migrations into `database/migrations` and runs `php artisan migrate`. Use `--force` to overwrite an existing copied migration file, or `--no-migrate` to only copy the files.

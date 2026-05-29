@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Asawl\LaravelSqliteManager\Commands;
 
+use Illuminate\Console\Attributes\Description;
+use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
 
+#[Description('Install Laravel SQLite Manager into the current Laravel project.')]
+#[Signature('sqlite-manager:install
+        {--force : Overwrite the published sqlite-manager.php config file if it already exists.}')]
 class SQLiteManagerInstallCommand extends Command
 {
-    protected $description = 'Install Laravel SQLite Manager into the current Laravel project.';
-
-    protected $signature = 'sqlite-manager:install
-        {--force : Overwrite the published sqlite-manager.php config file if it already exists.}';
-
     public function handle(Filesystem $filesystem): int
     {
         $source = dirname(__DIR__, 2).'/config/sqlite-manager.php';

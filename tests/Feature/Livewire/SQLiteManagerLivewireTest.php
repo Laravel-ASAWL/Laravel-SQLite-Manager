@@ -21,7 +21,7 @@ beforeEach(function (): void {
 
     config()->set('sqlite-manager.database_path', $this->databasePath);
     config()->set('sqlite-manager.security.allowed_environments', ['testing']);
-    config()->set('sqlite-manager.security.authorization_gate', null);
+    config()->set('sqlite-manager.security.authorization_gate');
     config()->set('sqlite-manager.security.read_only', false);
     config()->set('sqlite-manager.tables.allow', []);
     config()->set('sqlite-manager.tables.deny', []);
@@ -512,11 +512,11 @@ test('it can bulk delete selected records', function (): void {
 });
 
 test('it exports matching rows for csv and json downloads', function (): void {
-    $component = Livewire::test(SQLiteManagerLivewire::class, ['table' => 'contacts'])
+    $testable = Livewire::test(SQLiteManagerLivewire::class, ['table' => 'contacts'])
         ->set('filters', [['column' => 'name', 'operator' => 'equals', 'value' => 'Alice']]);
 
-    expect($component->instance()->exportCurrent('csv'))->toBeInstanceOf(StreamedResponse::class)
-        ->and($component->instance()->exportSelected('json'))->toBeInstanceOf(StreamedResponse::class);
+    expect($testable->instance()->exportCurrent('csv'))->toBeInstanceOf(StreamedResponse::class)
+        ->and($testable->instance()->exportSelected('json'))->toBeInstanceOf(StreamedResponse::class);
 });
 
 test('it deletes records from the table route', function (): void {

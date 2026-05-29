@@ -22,7 +22,7 @@ All notable changes to `asawl/laravel-sqlite-manager` will be documented in this
 - Added per-action authorization gates and operation row limits.
 - Added package-level Testbench scaffolding for standalone package tests.
 - Added a publishable audit log migration stub.
-- Added `sqlite-manager:test` to copy relationship test migrations into a Laravel project and run them.
+- Added `sqlite-manager:create-test-table` to copy relationship test migrations into a Laravel project and run them.
 - Added dark mode configuration, improved pagination controls, persisted filters, and edit diff hints.
 
 ### Changed

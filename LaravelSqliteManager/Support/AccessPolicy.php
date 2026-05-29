@@ -12,7 +12,7 @@ class AccessPolicy
     {
         $environments = config('sqlite-manager.security.allowed_environments', ['local', 'testing']);
 
-        if (is_array($environments) && $environments !== [] && ! in_array(app()->environment(), array_filter($environments, is_string(...)), true)) {
+        if (is_array($environments) && $environments !== [] && ! app()->environment(array_filter($environments, is_string(...)))) {
             return false;
         }
 

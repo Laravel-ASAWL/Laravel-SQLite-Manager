@@ -47,7 +47,7 @@ class CsvImporter
                     continue;
                 }
 
-                $row[$header] = isset($data[$index]) ? (string) $data[$index] : '';
+                $row[$header] = $data[$index] ?? '';
             }
 
             if ($row !== []) {

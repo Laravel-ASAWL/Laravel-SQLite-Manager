@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Asawl\LaravelSqliteManager;
 
+use Asawl\LaravelSqliteManager\Commands\SQLiteManagerCreateAuditLogTableCommand;
 use Asawl\LaravelSqliteManager\Commands\SQLiteManagerInstallCommand;
-use Asawl\LaravelSqliteManager\Commands\SQLiteManagerTestCommand;
+use Asawl\LaravelSqliteManager\Commands\SQLiteManagerCreateTestsTableCommand;
 use Asawl\LaravelSqliteManager\Livewire\SQLiteManagerLivewire;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Route;
@@ -31,14 +32,11 @@ class SQLiteManagerServiceProvider extends ServiceProvider
             $this->packagePath('config/sqlite-manager.php') => config_path('sqlite-manager.php'),
         ], 'sqlite-manager-config');
 
-        $this->publishes([
-            $this->packagePath('database/migrations/create_audit_log_table.php.stub') => database_path('migrations/'.date('Y_m_d_His').'_create_audit_log_table.php'),
-        ], 'sqlite-manager-migrations');
-
         if ($this->app->runningInConsole()) {
             $this->commands([
+                SQLiteManagerCreateAuditLogTableCommand::class,
                 SQLiteManagerInstallCommand::class,
-                SQLiteManagerTestCommand::class,
+                SQLiteManagerCreateTestsTableCommand::class,
             ]);
         }
     }

@@ -31,7 +31,7 @@ if (is_dir($skeleton)) {
 putenv('TELESCOPE_ENABLED=false');
 putenv('SESSION_DRIVER=array');
 
-$arguments = array_map('escapeshellarg', array_slice($argv, 1));
+$arguments = array_map(escapeshellarg(...), array_slice($argv, 1));
 $command = escapeshellarg(PHP_BINARY).' '.escapeshellarg($pest);
 
 if ($arguments !== []) {
