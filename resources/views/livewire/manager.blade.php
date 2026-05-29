@@ -20,6 +20,7 @@
                 <span @class(['badge', 'text-bg-success' => $exists, 'text-bg-danger' => ! $exists])>
                     {{ $exists ? 'Ready' : 'Missing' }}
                 </span>
+                <x-sqlite-manager::connection-selector :connections="$connections" :connection="$connection" />
             </div>
 
             <div class="inspector-grid row g-3">
@@ -116,9 +117,26 @@
                     <div class="field-grid">
                         @foreach ($columns as $column)
                             @if ($this->shouldShowFormColumn($column))
+                                @php
+                                    $relationshipOptions = $this->relationshipOptionsFor($column['name']);
+                                @endphp
                                 <label class="form-label">
                                     <span class="fw-semibold">{{ $column['name'] }}</span>
-                                    @if ($this->usesTextareaFor($column['type']))
+                                    @if ($relationshipOptions !== [] && ! $column['primary'])
+                                        <select
+                                            class="form-select"
+                                            wire:model="form.{{ $column['name'] }}"
+                                        >
+                                            @if ($column['nullable'])
+                                                <option value="">No related record</option>
+                                            @else
+                                                <option value="">Select related record</option>
+                                            @endif
+                                            @foreach ($relationshipOptions as $option)
+                                                <option value="{{ $option['key'] }}">{{ $option['label'] }}</option>
+                                            @endforeach
+                                        </select>
+                                    @elseif ($this->usesTextareaFor($column['type']))
                                         <textarea
                                             @class(['form-control', 'json-editor' => $this->usesJsonEditorFor($column)])
                                             rows="{{ $this->usesJsonEditorFor($column) ? 8 : 3 }}"
@@ -143,15 +161,20 @@
                                             NULLABLE
                                         @endif
                                     </small>
+                                    @if ($currentMode === 'edit' && $this->hasChanged($column['name']))
+                                        <small class="form-text text-body-secondary">
+                                            Original: {{ is_scalar($this->originalValue($column['name'])) || $this->originalValue($column['name']) === null ? (string) $this->originalValue($column['name']) : json_encode($this->originalValue($column['name']), JSON_THROW_ON_ERROR) }}
+                                        </small>
+                                    @endif
                                 </label>
                             @endif
                         @endforeach
                     </div>
 
                     <div class="form-actions">
-                        @unless ($readOnly)
+                        @if ($this->canAction($currentMode === 'edit' ? 'update' : 'create'))
                             <button class="btn btn-primary" type="submit">{{ $currentMode === 'edit' ? 'Update record' : 'Create record' }}</button>
-                        @endunless
+                        @endif
                         <a class="btn btn-outline-secondary" href="{{ route('sqlite-manager.tables.show', ['table' => $table]) }}">
                             Cancel
                         </a>
@@ -174,13 +197,16 @@
                     </div>
                     <div class="toolbar-actions">
                         <span class="badge text-bg-secondary">{{ $records['total'] }} rows</span>
-                        <button class="btn btn-outline-secondary" type="button" wire:click="exportCurrent('csv')">Export CSV</button>
-                        <button class="btn btn-outline-secondary" type="button" wire:click="exportCurrent('json')">Export JSON</button>
-                        @unless ($readOnly)
+                        <x-sqlite-manager::connection-selector :connections="$connections" :connection="$connection" />
+                        @if ($this->canAction('export'))
+                            <button class="btn btn-outline-secondary" type="button" wire:click="exportCurrent('csv')">Export CSV</button>
+                            <button class="btn btn-outline-secondary" type="button" wire:click="exportCurrent('json')">Export JSON</button>
+                        @endif
+                        @if ($this->canAction('create'))
                             <a class="btn btn-primary" href="{{ route('sqlite-manager.tables.create', ['table' => $table]) }}">
                                 Create record
                             </a>
-                        @endunless
+                        @endif
                     </div>
                 </div>
 
@@ -211,19 +237,6 @@
                         </select>
                     </label>
                     <input class="form-control" type="search" wire:model.live.debounce.300ms="search" placeholder="Search records in this table" />
-                    <label class="per-page-control">
-                        <span>Sort</span>
-                        <select class="form-select form-select-sm" wire:model.live="sortColumn">
-                            <option value="">Primary key</option>
-                            @foreach ($records['columns'] as $column)
-                                <option value="{{ $column['name'] }}">{{ $column['name'] }}</option>
-                            @endforeach
-                        </select>
-                    </label>
-                    <select class="form-select form-select-sm" wire:model.live="sortDirection" aria-label="Sort direction">
-                        <option value="asc">Ascending</option>
-                        <option value="desc">Descending</option>
-                    </select>
                     <button class="btn btn-primary" type="button" wire:click="$refresh">Search</button>
                     @if ($search !== '')
                         <button class="btn btn-outline-secondary" type="button" wire:click="$set('search', '')">Clear</button>
@@ -233,10 +246,16 @@
                 <div class="advanced-filters">
                     <div class="advanced-filters-head">
                         <strong>Advanced filters</strong>
-                        <button class="btn btn-outline-secondary btn-sm" type="button" wire:click="addFilter">Add filter</button>
+                        <div class="advanced-filters-actions">
+                            <button class="btn btn-outline-secondary btn-sm" type="button" wire:click="addFilter">Add filter</button>
+                            @if ($filters !== [])
+                                <button class="btn btn-primary btn-sm" type="button" wire:click="applyFilters">Apply filters</button>
+                                <button class="btn btn-outline-secondary btn-sm" type="button" wire:click="clearFilters">Clear filters</button>
+                            @endif
+                        </div>
                     </div>
                     @foreach ($filters as $index => $filter)
-                        <div class="filter-row" wire:key="filter-{{ $index }}">
+                        <div class="filter-row" wire:key="filter-{{ $table }}-{{ $index }}">
                             <select class="form-select form-select-sm" wire:model.live="filters.{{ $index }}.column" aria-label="Filter column">
                                 <option value="">Column</option>
                                 @foreach ($records['columns'] as $column)
@@ -256,22 +275,36 @@
                                 <option value="is_null">Is null</option>
                                 <option value="is_not_null">Is not null</option>
                             </select>
-                            <input class="form-control form-control-sm" type="text" wire:model.live.debounce.300ms="filters.{{ $index }}.value" placeholder="Value" />
+                            <input class="form-control form-control-sm" type="text" wire:model.live="filters.{{ $index }}.value" placeholder="Value" />
                             <button class="btn btn-outline-secondary btn-sm" type="button" wire:click="removeFilter({{ $index }})">Remove</button>
                         </div>
                     @endforeach
                 </div>
+
+                @if (collect($records['columns'])->contains(fn ($column) => $column['name'] === 'deleted_at'))
+                    <label class="laravel-tables-toggle form-check form-switch mx-3 mb-3">
+                        <input class="form-check-input" type="checkbox" role="switch" wire:model.live="showSoftDeleted" />
+                        <span class="form-check-label">Show soft-deleted records</span>
+                    </label>
+                @endif
+
+                <x-sqlite-manager::schema-inspector :schema="$schema" />
+                @if ($this->canAction('import'))
+                    <x-sqlite-manager::import-panel :read-only="$readOnly" />
+                @endif
 
                 @if ($records['primary_key'] === null)
                     <div class="alert alert-warning">Edit and delete require a single-column primary key.</div>
                 @elseif ($selectedRows !== [])
                     <div class="bulk-actions">
                         <span>{{ count($selectedRows) }} selected</span>
-                        <button class="btn btn-outline-secondary btn-sm" type="button" wire:click="exportSelected('csv')">Export selected CSV</button>
-                        <button class="btn btn-outline-secondary btn-sm" type="button" wire:click="exportSelected('json')">Export selected JSON</button>
-                        @unless ($readOnly)
+                        @if ($this->canAction('export'))
+                            <button class="btn btn-outline-secondary btn-sm" type="button" wire:click="exportSelected('csv')">Export selected CSV</button>
+                            <button class="btn btn-outline-secondary btn-sm" type="button" wire:click="exportSelected('json')">Export selected JSON</button>
+                        @endif
+                        @if ($this->canAction('bulk_delete'))
                             <button class="btn btn-outline-danger btn-sm" type="button" wire:click="bulkDelete" wire:confirm="Delete selected records?">Delete selected</button>
-                        @endunless
+                        @endif
                     </div>
                 @endif
 
@@ -334,12 +367,15 @@
 
                                     <td class="actions">
                                         @if ($records['primary_key'] !== null && $recordKey !== '')
-                                            @unless ($readOnly)
+                                            @if ($this->canAction('update') || $this->canAction('delete'))
+                                                @if ($this->canAction('update'))
                                                 <a
                                                     href="{{ route('sqlite-manager.tables.edit', ['table' => $table, 'key' => $recordKey]) }}"
                                                 >
                                                     Edit
                                                 </a>
+                                                @endif
+                                                @if ($this->canAction('delete'))
                                                 <button
                                                     class="btn btn-link link-danger p-0 align-baseline"
                                                     type="button"
@@ -348,9 +384,10 @@
                                                 >
                                                     Delete
                                                 </button>
+                                                @endif
                                             @else
                                                 <span class="muted">Read only</span>
-                                            @endunless
+                                            @endif
                                         @else
                                             <span class="muted">Unavailable</span>
                                         @endif
@@ -366,47 +403,7 @@
                 </div>
 
                 @if ($records['last_page'] > 1)
-                    <div class="pagination-shell">
-                        <div class="pagination-controls">
-                            @if ($records['page'] > 1)
-                                <button class="btn btn-outline-secondary" type="button" wire:click="goToPage(1)">First</button>
-                                <button
-                                    class="btn btn-outline-secondary"
-                                    type="button"
-                                    wire:click="goToPage({{ $records['page'] - 1 }})"
-                                >
-                                    Previous
-                                </button>
-                            @else
-                                <span class="btn btn-outline-secondary disabled">First</span>
-                                <span class="btn btn-outline-secondary disabled">Previous</span>
-                            @endif
-                        </div>
-
-                        <span>Page {{ $records['page'] }} of {{ $records['last_page'] }}</span>
-
-                        <div class="pagination-controls">
-                            @if ($records['page'] < $records['last_page'])
-                                <button
-                                    class="btn btn-outline-secondary"
-                                    type="button"
-                                    wire:click="goToPage({{ $records['page'] + 1 }})"
-                                >
-                                    Next
-                                </button>
-                                <button
-                                    class="btn btn-outline-secondary"
-                                    type="button"
-                                    wire:click="goToPage({{ $records['last_page'] }})"
-                                >
-                                    Last
-                                </button>
-                            @else
-                                <span class="btn btn-outline-secondary disabled">Next</span>
-                                <span class="btn btn-outline-secondary disabled">Last</span>
-                            @endif
-                        </div>
-                    </div>
+                    <x-sqlite-manager::pagination-controls :records="$records" />
                 @endif
             </section>
         @endif

@@ -43,6 +43,7 @@
     "larastan/larastan": "^3.0",
     "laravel/framework": "^13.0",
     "laravel/pint": "^1.0",
+    "orchestra/testbench": "^11.0",
     "pestphp/pest": "^4.0",
     "pestphp/pest-plugin-laravel": "^4.0"
   },
@@ -67,7 +68,7 @@
     }
   },
   "scripts": {
-    "test": "pest",
+    "test": "@php tests/run-pest.php",
     "analyse": "phpstan analyse",
     "format": "pint",
     "format:check": "pint --test"

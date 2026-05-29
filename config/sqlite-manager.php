@@ -5,6 +5,10 @@ declare(strict_types=1);
 return [
     'database_path' => env('SQLITE_MANAGER_DATABASE_PATH', database_path('database.sqlite')),
 
+    'connections' => [
+        'default' => env('SQLITE_MANAGER_DATABASE_PATH', database_path('database.sqlite')),
+    ],
+
     'routes' => [
         'enabled' => env('SQLITE_MANAGER_ROUTES_ENABLED', true),
         'prefix' => env('SQLITE_MANAGER_ROUTE_PREFIX', 'sqlite-manager'),
@@ -15,10 +19,26 @@ return [
         'allowed_environments' => ['local', 'testing'],
         'authorization_gate' => null,
         'read_only' => env('SQLITE_MANAGER_READ_ONLY', false),
+        'gates' => [
+            'access' => null,
+            'view' => null,
+            'create' => null,
+            'update' => null,
+            'delete' => null,
+            'bulk_delete' => null,
+            'export' => null,
+            'import' => null,
+        ],
+        'limits' => [
+            'max_delete_rows' => 100,
+            'max_export_rows' => 5000,
+            'max_page_size' => 100,
+        ],
     ],
 
     'tables' => [
         'show_laravel_tables' => env('SQLITE_MANAGER_SHOW_LARAVEL_TABLES', false),
+        'show_soft_deleted' => false,
         'allow' => [],
         'deny' => [],
         'laravel_table_patterns' => [
@@ -40,11 +60,20 @@ return [
 
     'audit' => [
         'enabled' => env('SQLITE_MANAGER_AUDIT_ENABLED', false),
-        'table' => 'laravel_sqlite_manager_audit_log',
+        'table' => '_lsm_audit_log',
+        'migration' => true,
     ],
 
     'exports' => [
         'max_rows' => 5000,
+    ],
+
+    'imports' => [
+        'max_rows' => 500,
+    ],
+
+    'ui' => [
+        'theme' => 'auto',
     ],
 
     'pagination' => [

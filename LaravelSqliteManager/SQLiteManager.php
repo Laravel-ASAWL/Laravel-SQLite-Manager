@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Asawl\LaravelSqliteManager;
 
-class SQLiteDatabaseManager
+class SQLiteManager
 {
     public function resolvePath(string $path): string
     {

@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
-use Asawl\LaravelSqliteManager\Livewire\SQLiteManager;
+use Asawl\LaravelSqliteManager\Livewire\SQLiteManagerLivewire;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 beforeEach(function (): void {
     $this->databasePath = storage_path('framework/testing/sqlite-manager/crud.sqlite');
@@ -58,7 +59,7 @@ test('it can show laravel framework tables on the dashboard', function (): void 
         ->assertDontSee('jobs')
         ->assertDontSee('telescope_entries');
 
-    Livewire::test(SQLiteManager::class)
+    Livewire::test(SQLiteManagerLivewire::class)
         ->set('showLaravelTables', true)
         ->assertSee('jobs')
         ->assertSee('telescope_entries');
@@ -93,6 +94,27 @@ test('it reads sqlite manager preferences from cookies', function (): void {
         ->assertDontSee('<th>email</th>', false);
 });
 
+test('it can switch between configured sqlite connections', function (): void {
+    $archivePath = storage_path('framework/testing/sqlite-manager/archive.sqlite');
+
+    $pdo = new PDO('sqlite:'.$archivePath);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo->exec('CREATE TABLE contacts (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NULL)');
+    $pdo->exec("INSERT INTO contacts (name, email) VALUES ('Archived Alice', 'archived@example.com')");
+
+    config()->set('sqlite-manager.connections', [
+        'default' => $this->databasePath,
+        'archive' => $archivePath,
+    ]);
+
+    Livewire::test(SQLiteManagerLivewire::class, ['table' => 'contacts'])
+        ->assertSee('Alice')
+        ->assertDontSee('Archived Alice')
+        ->set('connection', 'archive')
+        ->assertSee('Archived Alice')
+        ->assertDontSee('alice@example.com');
+});
+
 test('it lists table records', function (): void {
     $this->get('/sqlite-manager/tables/contacts')
         ->assertOk()
@@ -119,7 +141,7 @@ test('it filters and sorts table records', function (): void {
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->exec("INSERT INTO contacts (name, email) VALUES ('Bob', 'bob@example.com')");
 
-    Livewire::test(SQLiteManager::class, ['table' => 'contacts'])
+    Livewire::test(SQLiteManagerLivewire::class, ['table' => 'contacts'])
         ->set('filters', [['column' => 'name', 'operator' => 'equals', 'value' => 'Bob']])
         ->assertSee('Bob')
         ->assertDontSee('Alice')
@@ -129,6 +151,29 @@ test('it filters and sorts table records', function (): void {
         ->assertSet('sortDirection', 'asc')
         ->call('sortBy', 'name')
         ->assertSet('sortDirection', 'desc');
+});
+
+test('it applies advanced filters added from the table controls', function (): void {
+    $pdo = new PDO('sqlite:'.$this->databasePath);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo->exec("INSERT INTO contacts (name, email) VALUES ('Bob', 'bob@example.com')");
+
+    Livewire::test(SQLiteManagerLivewire::class, ['table' => 'contacts'])
+        ->assertSee('Alice')
+        ->assertSee('Bob')
+        ->call('addFilter')
+        ->assertSet('filters.0.operator', 'contains')
+        ->assertSee('Apply filters')
+        ->set('filters.0.column', 'name')
+        ->set('filters.0.operator', 'equals')
+        ->set('filters.0.value', 'Bob')
+        ->call('applyFilters')
+        ->assertSee('Bob')
+        ->assertDontSee('Alice')
+        ->call('clearFilters')
+        ->assertSet('filters', [])
+        ->assertSee('Alice')
+        ->assertSee('Bob');
 });
 
 test('it can restrict visible tables with allow and deny lists', function (): void {
@@ -173,6 +218,46 @@ test('it links conventional foreign key columns to related records', function ()
     $this->get('/sqlite-manager/tables/posts')
         ->assertOk()
         ->assertSee('/sqlite-manager/tables/users/1/edit', false);
+});
+
+test('it renders foreign key columns as relationship selects on forms', function (): void {
+    $pdo = new PDO('sqlite:'.$this->databasePath);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo->exec('CREATE TABLE authors (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT)');
+    $pdo->exec('CREATE TABLE articles (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, title TEXT, FOREIGN KEY (user_id) REFERENCES authors(id))');
+    $pdo->exec("INSERT INTO authors (name) VALUES ('Ada Author')");
+
+    $this->get('/sqlite-manager/tables/articles/create')
+        ->assertOk()
+        ->assertSee('wire:model="form.user_id"', false)
+        ->assertSee('<select', false)
+        ->assertSee('#1 - Ada Author');
+});
+
+test('it shows schema details for selected tables', function (): void {
+    $pdo = new PDO('sqlite:'.$this->databasePath);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo->exec('CREATE UNIQUE INDEX contacts_email_unique ON contacts (email)');
+
+    $this->get('/sqlite-manager/tables/contacts')
+        ->assertOk()
+        ->assertSee('Schema inspector')
+        ->assertSee('contacts_email_unique')
+        ->assertSee('UNIQUE');
+});
+
+test('it hides soft deleted rows unless enabled', function (): void {
+    $pdo = new PDO('sqlite:'.$this->databasePath);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo->exec('CREATE TABLE posts (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, deleted_at TEXT NULL)');
+    $pdo->exec("INSERT INTO posts (title, deleted_at) VALUES ('Visible post', NULL)");
+    $pdo->exec("INSERT INTO posts (title, deleted_at) VALUES ('Trashed post', '2026-05-28 10:00:00')");
+
+    Livewire::test(SQLiteManagerLivewire::class, ['table' => 'posts'])
+        ->assertSee('Visible post')
+        ->assertDontSee('Trashed post')
+        ->set('showSoftDeleted', true)
+        ->assertSee('Trashed post');
 });
 
 test('it paginates table records with configurable page sizes', function (): void {
@@ -247,7 +332,7 @@ test('it can hide nullable fields on the create form', function (): void {
         ->assertSee('Show nullable fields')
         ->assertSee('wire:model="form.email"', false);
 
-    Livewire::test(SQLiteManager::class, ['table' => 'contacts', 'mode' => 'create'])
+    Livewire::test(SQLiteManagerLivewire::class, ['table' => 'contacts', 'mode' => 'create'])
         ->assertSee('Show nullable fields')
         ->assertSee('wire:model="form.email"', false)
         ->set('showNullableFields', false)
@@ -261,7 +346,7 @@ test('it can hide nullable fields on the edit form', function (): void {
         ->assertSee('Show nullable fields')
         ->assertSee('wire:model="form.email"', false);
 
-    Livewire::test(SQLiteManager::class, ['table' => 'contacts', 'mode' => 'edit', 'key' => '1'])
+    Livewire::test(SQLiteManagerLivewire::class, ['table' => 'contacts', 'mode' => 'edit', 'key' => '1'])
         ->assertSee('Show nullable fields')
         ->assertSee('wire:model="form.email"', false)
         ->set('showNullableFields', false)
@@ -314,7 +399,7 @@ test('it creates records from the table form route', function (): void {
         ->assertOk()
         ->assertSee('Create record');
 
-    Livewire::test(SQLiteManager::class, ['table' => 'contacts', 'mode' => 'create'])
+    Livewire::test(SQLiteManagerLivewire::class, ['table' => 'contacts', 'mode' => 'create'])
         ->set('form.id', '')
         ->set('form.name', 'Bob')
         ->set('form.email', 'bob@example.com')
@@ -332,7 +417,7 @@ test('it validates form data with configured table rules', function (): void {
         'email' => 'required|email',
     ]);
 
-    Livewire::test(SQLiteManager::class, ['table' => 'contacts', 'mode' => 'create'])
+    Livewire::test(SQLiteManagerLivewire::class, ['table' => 'contacts', 'mode' => 'create'])
         ->set('form.name', 'Invalid Email')
         ->set('form.email', 'not-an-email')
         ->call('save')
@@ -345,7 +430,7 @@ test('it updates records from the edit route', function (): void {
         ->assertSee('Edit record')
         ->assertSee('Alice');
 
-    Livewire::test(SQLiteManager::class, ['table' => 'contacts', 'mode' => 'edit', 'key' => '1'])
+    Livewire::test(SQLiteManagerLivewire::class, ['table' => 'contacts', 'mode' => 'edit', 'key' => '1'])
         ->set('form.name', 'Alice Updated')
         ->set('form.email', 'alice.updated@example.com')
         ->call('save')
@@ -360,13 +445,13 @@ test('it updates records from the edit route', function (): void {
 test('it can audit write operations', function (): void {
     config()->set('sqlite-manager.audit.enabled', true);
 
-    Livewire::test(SQLiteManager::class, ['table' => 'contacts', 'mode' => 'edit', 'key' => '1'])
+    Livewire::test(SQLiteManagerLivewire::class, ['table' => 'contacts', 'mode' => 'edit', 'key' => '1'])
         ->set('form.name', 'Audited Alice')
         ->call('save')
         ->assertRedirect(route('sqlite-manager.tables.show', ['table' => 'contacts']));
 
     $pdo = new PDO('sqlite:'.$this->databasePath);
-    $audit = $pdo->query('SELECT action, table_name FROM laravel_sqlite_manager_audit_log')->fetch(PDO::FETCH_ASSOC);
+    $audit = $pdo->query('SELECT action, table_name FROM _lsm_audit_log')->fetch(PDO::FETCH_ASSOC);
 
     expect($audit)->toMatchArray(['action' => 'update', 'table_name' => 'contacts']);
 });
@@ -379,7 +464,7 @@ test('it blocks writes in read only mode', function (): void {
         ->assertDontSee('Create record')
         ->assertSee('Read only');
 
-    Livewire::test(SQLiteManager::class, ['table' => 'contacts'])
+    Livewire::test(SQLiteManagerLivewire::class, ['table' => 'contacts'])
         ->call('deleteRecord', '1')
         ->assertSet('error', 'SQLite Manager is running in read-only mode.');
 
@@ -388,12 +473,34 @@ test('it blocks writes in read only mode', function (): void {
         ->assertSee('Alice');
 });
 
+test('it blocks actions with configured gates', function (): void {
+    config()->set('sqlite-manager.security.gates.import', 'sqlite-manager-import');
+    Gate::define('sqlite-manager-import', fn (): bool => false);
+
+    Livewire::test(SQLiteManagerLivewire::class, ['table' => 'contacts'])
+        ->set('csvImport', "name,email\nBlocked,blocked@example.com")
+        ->call('importCsv')
+        ->assertSet('error', 'This SQLite Manager action is not allowed.');
+});
+
+test('it imports rows from csv input', function (): void {
+    Livewire::test(SQLiteManagerLivewire::class, ['table' => 'contacts'])
+        ->set('csvImport', "name,email\nBob,bob@example.com")
+        ->call('importCsv')
+        ->assertSet('status', '1 records imported.');
+
+    $this->get('/sqlite-manager/tables/contacts')
+        ->assertOk()
+        ->assertSee('Bob')
+        ->assertSee('bob@example.com');
+});
+
 test('it can bulk delete selected records', function (): void {
     $pdo = new PDO('sqlite:'.$this->databasePath);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->exec("INSERT INTO contacts (name, email) VALUES ('Bob', 'bob@example.com')");
 
-    Livewire::test(SQLiteManager::class, ['table' => 'contacts'])
+    Livewire::test(SQLiteManagerLivewire::class, ['table' => 'contacts'])
         ->set('selectedRows', ['1'])
         ->call('bulkDelete')
         ->assertSet('status', '1 records deleted.');
@@ -405,15 +512,15 @@ test('it can bulk delete selected records', function (): void {
 });
 
 test('it exports matching rows for csv and json downloads', function (): void {
-    $component = Livewire::test(SQLiteManager::class, ['table' => 'contacts'])
+    $component = Livewire::test(SQLiteManagerLivewire::class, ['table' => 'contacts'])
         ->set('filters', [['column' => 'name', 'operator' => 'equals', 'value' => 'Alice']]);
 
-    expect($component->instance()->exportCurrent('csv'))->toBeInstanceOf(\Symfony\Component\HttpFoundation\StreamedResponse::class)
-        ->and($component->instance()->exportSelected('json'))->toBeInstanceOf(\Symfony\Component\HttpFoundation\StreamedResponse::class);
+    expect($component->instance()->exportCurrent('csv'))->toBeInstanceOf(StreamedResponse::class)
+        ->and($component->instance()->exportSelected('json'))->toBeInstanceOf(StreamedResponse::class);
 });
 
 test('it deletes records from the table route', function (): void {
-    Livewire::test(SQLiteManager::class, ['table' => 'contacts'])
+    Livewire::test(SQLiteManagerLivewire::class, ['table' => 'contacts'])
         ->call('deleteRecord', '1')
         ->assertSet('status', 'Record deleted.');
 

@@ -7,7 +7,7 @@ namespace Asawl\LaravelSqliteManager\Http\Controllers;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Http\Response;
 
-class SQLiteDatabaseController
+class SQLiteManagerController
 {
     public function stylesheet(Filesystem $filesystem): Response
     {

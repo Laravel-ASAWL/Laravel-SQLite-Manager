@@ -7,7 +7,7 @@ namespace Asawl\LaravelSqliteManager\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
 
-class InstallSQLiteManagerCommand extends Command
+class SQLiteManagerInstallCommand extends Command
 {
     protected $description = 'Install Laravel SQLite Manager into the current Laravel project.';
 

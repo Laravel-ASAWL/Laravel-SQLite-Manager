@@ -15,6 +15,15 @@ All notable changes to `asawl/laravel-sqlite-manager` will be documented in this
 - Added conventional `*_id` relationship links to related tables.
 - Added expanded JSON/TEXT editing and JSON previews.
 - Added GitHub Actions test matrix for Laravel 13 on PHP 8.3 and 8.4.
+- Added configurable SQLite connections with an in-UI connection selector.
+- Added a schema inspector for table columns, indexes, and foreign keys.
+- Added CSV import with a configurable row limit.
+- Added soft delete awareness for tables with `deleted_at` columns.
+- Added per-action authorization gates and operation row limits.
+- Added package-level Testbench scaffolding for standalone package tests.
+- Added a publishable audit log migration stub.
+- Added `sqlite-manager:test` to copy relationship test migrations into a Laravel project and run them.
+- Added dark mode configuration, improved pagination controls, persisted filters, and edit diff hints.
 
 ### Changed
 
@@ -24,6 +33,7 @@ All notable changes to `asawl/laravel-sqlite-manager` will be documented in this
 - Removed third-party theme wording from the package UI and stylesheet internals.
 - Added nullable field visibility control to the edit record form.
 - Moved package `config`, `resources`, `routes`, and `tests` directories to the package root.
+- Split access control, validation, audit logging, exports, imports, and schema inspection into support services.
 
 ## 1.0.0 - 2026-05-28
 

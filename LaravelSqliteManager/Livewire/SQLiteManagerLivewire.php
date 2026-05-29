@@ -4,13 +4,18 @@ declare(strict_types=1);
 
 namespace Asawl\LaravelSqliteManager\Livewire;
 
-use Asawl\LaravelSqliteManager\SQLiteDatabaseManager;
-use Asawl\LaravelSqliteManager\SQLiteDatabaseRepository;
+use Asawl\LaravelSqliteManager\SQLiteManager;
+use Asawl\LaravelSqliteManager\SQLiteManagerRepository;
+use Asawl\LaravelSqliteManager\Support\AccessPolicy;
+use Asawl\LaravelSqliteManager\Support\AuditLogger;
+use Asawl\LaravelSqliteManager\Support\CsvImporter;
+use Asawl\LaravelSqliteManager\Support\DataExporter;
+use Asawl\LaravelSqliteManager\Support\FormValidator;
+use Asawl\LaravelSqliteManager\Support\SchemaInspector;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Contracts\View\View;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Cookie;
-use Illuminate\Support\Facades\Gate;
 use JsonException;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
@@ -18,7 +23,7 @@ use Livewire\Component;
 use RuntimeException;
 
 #[Layout('sqlite-manager::layouts.app')]
-class SQLiteManager extends Component
+class SQLiteManagerLivewire extends Component
 {
     public ?string $table = null;
 
@@ -35,6 +40,9 @@ class SQLiteManager extends Component
     #[Url(as: 'per_page')]
     public int $perPage = 0;
 
+    #[Url(as: 'connection', except: 'default')]
+    public string $connection = 'default';
+
     /** @var list<string> */
     #[Url(as: 'cols', except: [])]
     public array $selectedColumns = [];
@@ -43,6 +51,15 @@ class SQLiteManager extends Component
     public array $form = [];
 
     public bool $showNullableFields = true;
+
+    public bool $showSoftDeleted = false;
+
+    public string $pageJump = '';
+
+    public string $csvImport = '';
+
+    /** @var array<string, mixed> */
+    public array $originalForm = [];
 
     /** @var list<array{column: string, operator: string, value: string}> */
     public array $filters = [];
@@ -63,12 +80,15 @@ class SQLiteManager extends Component
 
     public function mount(?string $table = null, ?string $mode = null, ?string $key = null): void
     {
-        abort_unless($this->canAccessManager(), 403);
+        abort_unless($this->accessPolicy()->canAccess(), 403);
 
         $this->table = $table;
         $this->mode = $mode;
         $this->key = $key;
+        $this->connection = $this->validConnection($this->connection);
+        $this->applySelectedConnection();
         $this->showLaravelTables = $this->defaultShowLaravelTables();
+        $this->showSoftDeleted = $this->defaultShowSoftDeleted();
         $this->perPage = $this->perPage > 0 ? $this->perPage : $this->defaultPerPage();
         $this->hydrateCookiePreferences();
         $this->hydrateQueryParameters();
@@ -89,12 +109,15 @@ class SQLiteManager extends Component
 
     public function render(): Factory|View
     {
-        $databasePath = $this->manager()->resolvePath($this->configuredPath());
+        $this->connection = $this->validConnection($this->connection);
+        $this->applySelectedConnection();
+        $databasePath = $this->repository()->databasePath();
         $exists = $this->filesystem()->exists($databasePath);
         $tables = [];
         $error = $this->error;
         $records = null;
         $columns = [];
+        $schema = null;
         $selectedColumns = [];
         $visibleColumns = [];
 
@@ -111,7 +134,8 @@ class SQLiteManager extends Component
                 if ($this->isFormMode()) {
                     $columns = $this->repository()->columns($this->table);
                 } else {
-                    $records = $this->repository()->records($this->table, $this->page, $this->perPage, $this->normalizedSearch(), $this->activeFilters(), $this->sortColumnOrNull(), $this->sortDirection);
+                    $records = $this->repository()->records($this->table, $this->page, $this->perPage, $this->normalizedSearch(), $this->activeFilters(), $this->sortColumnOrNull(), $this->sortDirection, $this->showSoftDeleted);
+                    $schema = $this->schemaInspector()->inspect($this->table);
                     $selectedColumns = $this->normalizeSelectedColumns($records['columns']);
                     $visibleColumns = array_values(array_filter(
                         $records['columns'],
@@ -125,13 +149,15 @@ class SQLiteManager extends Component
 
         return view('sqlite-manager::livewire.manager', [
             'columns' => $columns,
+            'connections' => $this->connectionNames(),
             'databasePath' => $databasePath,
             'error' => $error,
             'exists' => $exists,
             'currentMode' => $this->currentMode(),
             'perPageOptions' => $this->perPageOptionValues(),
             'records' => $records,
-            'readOnly' => $this->readOnly(),
+            'readOnly' => $this->accessPolicy()->readOnly(),
+            'schema' => $schema,
             'selectedColumnsForDisplay' => $selectedColumns,
             'showLaravelTables' => $this->showLaravelTables,
             'tables' => $tables,
@@ -141,6 +167,7 @@ class SQLiteManager extends Component
 
     public function save(): mixed
     {
+        $this->applySelectedConnection();
         $this->resetMessages();
 
         if ($this->table === null) {
@@ -150,27 +177,31 @@ class SQLiteManager extends Component
         }
 
         try {
-            if ($this->readOnly()) {
-                $this->error = 'SQLite Manager is running in read-only mode.';
+            $action = $this->mode === 'edit' && $this->key !== null ? 'update' : 'create';
+
+            if (! $this->accessPolicy()->can($action)) {
+                $this->error = $this->actionForbiddenMessage($action);
 
                 return null;
             }
 
-            $rules = $this->formValidationRules();
+            $rules = $this->formValidator()->rules($this->table);
 
             if ($rules !== []) {
                 $this->validate($rules);
             }
 
+            $this->formValidator()->validateJson($this->form, $this->repository()->columns($this->table));
+
             if ($this->mode === 'edit' && $this->key !== null) {
                 $before = $this->repository()->find($this->table, $this->key);
                 $this->repository()->update($this->table, $this->key, $this->form);
-                $this->repository()->audit('update', $this->table, $this->key, $before, $this->form);
+                $this->auditLogger()->log('update', $this->table, $this->key, $before, $this->form);
                 session()->flash('sqlite_manager_status', 'Record updated.');
             } else {
                 $attributes = $this->createFormAttributes();
                 $key = $this->repository()->insert($this->table, $attributes);
-                $this->repository()->audit('create', $this->table, $key, null, $attributes);
+                $this->auditLogger()->log('create', $this->table, $key, null, $attributes);
                 session()->flash('sqlite_manager_status', 'Record created.');
             }
         } catch (RuntimeException $exception) {
@@ -184,6 +215,7 @@ class SQLiteManager extends Component
 
     public function deleteRecord(string $key): void
     {
+        $this->applySelectedConnection();
         $this->resetMessages();
 
         if ($this->table === null) {
@@ -193,15 +225,15 @@ class SQLiteManager extends Component
         }
 
         try {
-            if ($this->readOnly()) {
-                $this->error = 'SQLite Manager is running in read-only mode.';
+            if (! $this->accessPolicy()->can('delete')) {
+                $this->error = $this->actionForbiddenMessage('delete');
 
                 return;
             }
 
             $before = $this->repository()->find($this->table, $key);
             $this->repository()->delete($this->table, $key);
-            $this->repository()->audit('delete', $this->table, $key, $before, null);
+            $this->auditLogger()->log('delete', $this->table, $key, $before, null);
         } catch (RuntimeException $exception) {
             $this->error = $exception->getMessage();
 
@@ -213,6 +245,7 @@ class SQLiteManager extends Component
 
     public function bulkDelete(): void
     {
+        $this->applySelectedConnection();
         $this->resetMessages();
 
         if ($this->table === null) {
@@ -221,15 +254,15 @@ class SQLiteManager extends Component
             return;
         }
 
-        if ($this->readOnly()) {
-            $this->error = 'SQLite Manager is running in read-only mode.';
+        if (! $this->accessPolicy()->can('bulk_delete')) {
+            $this->error = $this->actionForbiddenMessage('bulk_delete');
 
             return;
         }
 
         try {
             $deleted = $this->repository()->deleteMany($this->table, $this->selectedRows);
-            $this->repository()->audit('bulk_delete', $this->table, null, ['keys' => $this->selectedRows], null);
+            $this->auditLogger()->log('bulk_delete', $this->table, null, ['keys' => $this->selectedRows], null);
         } catch (RuntimeException $exception) {
             $this->error = $exception->getMessage();
 
@@ -242,12 +275,65 @@ class SQLiteManager extends Component
 
     public function exportCurrent(string $format): mixed
     {
+        $this->applySelectedConnection();
+        if (! $this->accessPolicy()->can('export')) {
+            $this->error = $this->actionForbiddenMessage('export');
+
+            return null;
+        }
+
         return $this->downloadExport($format, []);
     }
 
     public function exportSelected(string $format): mixed
     {
+        $this->applySelectedConnection();
+        if (! $this->accessPolicy()->can('export')) {
+            $this->error = $this->actionForbiddenMessage('export');
+
+            return null;
+        }
+
         return $this->downloadExport($format, $this->selectedRows);
+    }
+
+    public function importCsv(): void
+    {
+        $this->applySelectedConnection();
+        $this->resetMessages();
+
+        if ($this->table === null) {
+            $this->error = 'No SQLite table selected.';
+
+            return;
+        }
+
+        if (! $this->accessPolicy()->can('import')) {
+            $this->error = $this->actionForbiddenMessage('import');
+
+            return;
+        }
+
+        try {
+            $rows = $this->csvImporter()->rows($this->csvImport);
+            $limit = $this->importLimit();
+
+            if (count($rows) > $limit) {
+                throw new RuntimeException('CSV import exceeds the configured row limit.');
+            }
+
+            foreach ($rows as $row) {
+                $key = $this->repository()->insert($this->table, $row);
+                $this->auditLogger()->log('import', $this->table, $key, null, $row);
+            }
+        } catch (RuntimeException $exception) {
+            $this->error = $exception->getMessage();
+
+            return;
+        }
+
+        $this->csvImport = '';
+        $this->status = count($rows).' records imported.';
     }
 
     public function goToPage(int $page): void
@@ -263,6 +349,26 @@ class SQLiteManager extends Component
     public function updatedFilters(): void
     {
         $this->page = 1;
+        $this->rememberPreference($this->filtersCookieName(), json_encode($this->filters, JSON_THROW_ON_ERROR));
+    }
+
+    public function updatedShowSoftDeleted(): void
+    {
+        $this->page = 1;
+        $this->rememberPreference($this->showSoftDeletedCookieName(), $this->showSoftDeleted ? '1' : '0');
+    }
+
+    public function updatedConnection(): void
+    {
+        $this->connection = $this->validConnection($this->connection);
+        $this->applySelectedConnection();
+        $this->page = 1;
+    }
+
+    public function goToPageInput(): void
+    {
+        $this->goToPage(is_numeric($this->pageJump) ? (int) $this->pageJump : 1);
+        $this->pageJump = '';
     }
 
     public function updatedSortColumn(): void
@@ -279,13 +385,26 @@ class SQLiteManager extends Component
     public function addFilter(): void
     {
         $this->filters[] = ['column' => '', 'operator' => 'contains', 'value' => ''];
+        $this->applyFilters();
+    }
+
+    public function applyFilters(): void
+    {
+        $this->page = 1;
+        $this->rememberPreference($this->filtersCookieName(), json_encode($this->filters, JSON_THROW_ON_ERROR));
+    }
+
+    public function clearFilters(): void
+    {
+        $this->filters = [];
+        $this->applyFilters();
     }
 
     public function removeFilter(int $index): void
     {
         unset($this->filters[$index]);
         $this->filters = array_values($this->filters);
-        $this->page = 1;
+        $this->applyFilters();
     }
 
     public function sortBy(string $column): void
@@ -389,6 +508,33 @@ class SQLiteManager extends Component
     }
 
     /**
+     * @return list<array{key: string, label: string}>
+     */
+    public function relationshipOptionsFor(string $column): array
+    {
+        if ($this->table === null) {
+            return [];
+        }
+
+        return $this->repository()->relationOptions($this->table, $column);
+    }
+
+    public function canAction(string $action): bool
+    {
+        return $this->accessPolicy()->can($action);
+    }
+
+    public function hasChanged(string $column): bool
+    {
+        return array_key_exists($column, $this->originalForm) && ($this->originalForm[$column] ?? null) !== ($this->form[$column] ?? null);
+    }
+
+    public function originalValue(string $column): mixed
+    {
+        return $this->originalForm[$column] ?? null;
+    }
+
+    /**
      * @param  array{name: string, type: string, nullable: bool, default: mixed, primary: bool}  $column
      */
     public function shouldShowFormColumn(array $column): bool
@@ -432,6 +578,8 @@ class SQLiteManager extends Component
             $name = $column['name'];
             $this->form[$name] = $record[$name] ?? null;
         }
+
+        $this->originalForm = $this->form;
     }
 
     /**
@@ -501,27 +649,14 @@ class SQLiteManager extends Component
         return is_string($path) ? $path : database_path('database.sqlite');
     }
 
-    private function readOnly(): bool
-    {
-        return (bool) config('sqlite-manager.security.read_only', false);
-    }
-
-    private function canAccessManager(): bool
-    {
-        $environments = config('sqlite-manager.security.allowed_environments', ['local', 'testing']);
-
-        if (is_array($environments) && $environments !== [] && ! in_array(app()->environment(), array_filter($environments, is_string(...)), true)) {
-            return false;
-        }
-
-        $gate = config('sqlite-manager.security.authorization_gate');
-
-        return ! is_string($gate) || $gate === '' || Gate::allows($gate);
-    }
-
     private function defaultShowLaravelTables(): bool
     {
         return (bool) config('sqlite-manager.tables.show_laravel_tables', false);
+    }
+
+    private function defaultShowSoftDeleted(): bool
+    {
+        return (bool) config('sqlite-manager.tables.show_soft_deleted', false);
     }
 
     private function normalizedSearch(): ?string
@@ -554,6 +689,46 @@ class SQLiteManager extends Component
     private function sortColumnOrNull(): ?string
     {
         return $this->sortColumn === '' ? null : $this->sortColumn;
+    }
+
+    private function actionForbiddenMessage(string $action): string
+    {
+        if ($this->accessPolicy()->readOnly() && in_array($action, ['create', 'update', 'delete', 'bulk_delete', 'import'], true)) {
+            return 'SQLite Manager is running in read-only mode.';
+        }
+
+        return 'This SQLite Manager action is not allowed.';
+    }
+
+    /** @return list<string> */
+    private function connectionNames(): array
+    {
+        $connections = config('sqlite-manager.connections', ['default' => $this->configuredPath()]);
+
+        if (! is_array($connections)) {
+            return ['default'];
+        }
+
+        $names = array_values(array_filter(array_keys($connections), is_string(...)));
+
+        return $names === [] ? ['default'] : $names;
+    }
+
+    private function validConnection(string $connection): string
+    {
+        return in_array($connection, $this->connectionNames(), true) ? $connection : 'default';
+    }
+
+    private function applySelectedConnection(): void
+    {
+        config(['sqlite-manager.active_connection' => $this->connection]);
+    }
+
+    private function importLimit(): int
+    {
+        $limit = config('sqlite-manager.imports.max_rows', 500);
+
+        return is_numeric($limit) ? max(1, (int) $limit) : 500;
     }
 
     /** @return array<string, string|list<string>> */
@@ -589,35 +764,7 @@ class SQLiteManager extends Component
             return null;
         }
 
-        $rows = $this->repository()->exportRows($this->table, $this->normalizedSearch(), $this->activeFilters(), $selectedKeys, $this->sortColumnOrNull(), $this->sortDirection);
-        $format = $format === 'json' ? 'json' : 'csv';
-        $filename = $this->table.'-'.now()->format('Ymd-His').'.'.$format;
-
-        if ($format === 'json') {
-            return response()->streamDownload(function () use ($rows): void {
-                print json_encode($rows, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR);
-            }, $filename, ['Content-Type' => 'application/json']);
-        }
-
-        return response()->streamDownload(function () use ($rows): void {
-            $output = fopen('php://output', 'w');
-
-            if ($output === false) {
-                return;
-            }
-
-            $headers = array_keys($rows[0] ?? []);
-
-            if ($headers !== []) {
-                fputcsv($output, $headers);
-            }
-
-            foreach ($rows as $row) {
-                fputcsv($output, array_map(fn (mixed $value): mixed => is_scalar($value) || $value === null ? $value : json_encode($value, JSON_THROW_ON_ERROR), $row));
-            }
-
-            fclose($output);
-        }, $filename, ['Content-Type' => 'text/csv']);
+        return $this->dataExporter()->download($this->table, $format, $this->normalizedSearch(), $this->activeFilters(), $selectedKeys, $this->sortColumnOrNull(), $this->sortDirection, $this->showSoftDeleted);
     }
 
     /** @return list<int> */
@@ -713,7 +860,9 @@ class SQLiteManager extends Component
         $perPage = $this->cookiePreference($this->perPageCookieName());
         $showLaravelTables = $this->cookiePreference($this->showLaravelTablesCookieName());
         $showNullableFields = $this->cookiePreference($this->showNullableFieldsCookieName());
+        $showSoftDeleted = $this->cookiePreference($this->showSoftDeletedCookieName());
         $selectedColumns = $this->cookiePreference($this->selectedColumnsCookieName());
+        $filters = $this->cookiePreference($this->filtersCookieName());
 
         if (is_numeric($perPage)) {
             $this->perPage = (int) $perPage;
@@ -727,6 +876,10 @@ class SQLiteManager extends Component
             $this->showNullableFields = filter_var($showNullableFields, FILTER_VALIDATE_BOOL);
         }
 
+        if (is_string($showSoftDeleted)) {
+            $this->showSoftDeleted = filter_var($showSoftDeleted, FILTER_VALIDATE_BOOL);
+        }
+
         if (is_string($selectedColumns)) {
             try {
                 $selectedColumns = json_decode($selectedColumns, true, flags: JSON_THROW_ON_ERROR);
@@ -736,6 +889,18 @@ class SQLiteManager extends Component
 
             if (is_array($selectedColumns)) {
                 $this->selectedColumns = array_values(array_filter($selectedColumns, is_string(...)));
+            }
+        }
+
+        if (is_string($filters)) {
+            try {
+                $filters = json_decode($filters, true, flags: JSON_THROW_ON_ERROR);
+            } catch (JsonException) {
+                $filters = null;
+            }
+
+            if (is_array($filters)) {
+                $this->filters = array_values(array_filter($filters, is_array(...)));
             }
         }
     }
@@ -790,9 +955,19 @@ class SQLiteManager extends Component
         return 'sqlite_manager_show_nullable_fields';
     }
 
+    private function showSoftDeletedCookieName(): string
+    {
+        return 'sqlite_manager_show_soft_deleted';
+    }
+
     private function selectedColumnsCookieName(): string
     {
         return 'sqlite_manager_columns_'.sha1((string) $this->table);
+    }
+
+    private function filtersCookieName(): string
+    {
+        return 'sqlite_manager_filters_'.sha1((string) $this->table);
     }
 
     private function resetMessages(): void
@@ -801,14 +976,44 @@ class SQLiteManager extends Component
         $this->error = null;
     }
 
-    private function manager(): SQLiteDatabaseManager
+    private function manager(): SQLiteManager
     {
-        return resolve(SQLiteDatabaseManager::class);
+        return resolve(SQLiteManager::class);
     }
 
-    private function repository(): SQLiteDatabaseRepository
+    private function repository(): SQLiteManagerRepository
     {
-        return resolve(SQLiteDatabaseRepository::class);
+        return resolve(SQLiteManagerRepository::class);
+    }
+
+    private function accessPolicy(): AccessPolicy
+    {
+        return resolve(AccessPolicy::class);
+    }
+
+    private function auditLogger(): AuditLogger
+    {
+        return resolve(AuditLogger::class);
+    }
+
+    private function csvImporter(): CsvImporter
+    {
+        return resolve(CsvImporter::class);
+    }
+
+    private function dataExporter(): DataExporter
+    {
+        return resolve(DataExporter::class);
+    }
+
+    private function formValidator(): FormValidator
+    {
+        return resolve(FormValidator::class);
+    }
+
+    private function schemaInspector(): SchemaInspector
+    {
+        return resolve(SchemaInspector::class);
     }
 
     private function filesystem(): Filesystem

@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Asawl\LaravelSqliteManager;
 
-use Asawl\LaravelSqliteManager\Commands\InstallSQLiteManagerCommand;
-use Asawl\LaravelSqliteManager\Livewire\SQLiteManager;
+use Asawl\LaravelSqliteManager\Commands\SQLiteManagerInstallCommand;
+use Asawl\LaravelSqliteManager\Commands\SQLiteManagerTestCommand;
+use Asawl\LaravelSqliteManager\Livewire\SQLiteManagerLivewire;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -22,7 +23,7 @@ class SQLiteManagerServiceProvider extends ServiceProvider
     {
         $this->loadViewsFrom($this->packagePath('resources/views'), 'sqlite-manager');
         Blade::anonymousComponentPath($this->packagePath('resources/views/components'), 'sqlite-manager');
-        Livewire::component('sqlite-manager.manager', SQLiteManager::class);
+        Livewire::component('sqlite-manager.manager', SQLiteManagerLivewire::class);
 
         $this->registerRoutes();
 
@@ -30,9 +31,14 @@ class SQLiteManagerServiceProvider extends ServiceProvider
             $this->packagePath('config/sqlite-manager.php') => config_path('sqlite-manager.php'),
         ], 'sqlite-manager-config');
 
+        $this->publishes([
+            $this->packagePath('database/migrations/create_audit_log_table.php.stub') => database_path('migrations/'.date('Y_m_d_His').'_create_audit_log_table.php'),
+        ], 'sqlite-manager-migrations');
+
         if ($this->app->runningInConsole()) {
             $this->commands([
-                InstallSQLiteManagerCommand::class,
+                SQLiteManagerInstallCommand::class,
+                SQLiteManagerTestCommand::class,
             ]);
         }
     }

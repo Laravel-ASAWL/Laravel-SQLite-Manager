@@ -1,0 +1,90 @@
+<?php
+
+declare(strict_types=1);
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+
+return new class() extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        if (! Schema::hasTable('_lsm_test_users')) {
+            Schema::create('_lsm_test_users', function (Blueprint $blueprint): void {
+                $blueprint->id();
+                $blueprint->string('name');
+                $blueprint->string('email')->unique();
+                $blueprint->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('_lsm_test_posts')) {
+            Schema::create('_lsm_test_posts', function (Blueprint $blueprint): void {
+                $blueprint->id();
+                $blueprint->foreignId('user_id')->constrained('_lsm_test_users')->cascadeOnDelete();
+                $blueprint->string('title');
+                $blueprint->text('body')->nullable();
+                $blueprint->timestamps();
+            });
+        }
+
+        if (! Schema::hasTable('_lsm_test_comments')) {
+            Schema::create('_lsm_test_comments', function (Blueprint $blueprint): void {
+                $blueprint->id();
+                $blueprint->foreignId('user_id')->constrained('_lsm_test_users')->cascadeOnDelete();
+                $blueprint->foreignId('post_id')->constrained('_lsm_test_posts')->cascadeOnDelete();
+                $blueprint->text('body');
+                $blueprint->timestamps();
+            });
+        }
+
+        $now = now();
+
+        DB::table('_lsm_test_users')->updateOrInsert(
+            ['id' => 1],
+            ['name' => 'Ada Lovelace', 'email' => 'ada@example.test', 'created_at' => $now, 'updated_at' => $now],
+        );
+        DB::table('_lsm_test_users')->updateOrInsert(
+            ['id' => 2],
+            ['name' => 'Grace Hopper', 'email' => 'grace@example.test', 'created_at' => $now, 'updated_at' => $now],
+        );
+
+        foreach ([
+            ['id' => 1, 'user_id' => 1, 'title' => 'First SQLite note', 'body' => 'Post owned by Ada.'],
+            ['id' => 2, 'user_id' => 1, 'title' => 'Second SQLite note', 'body' => 'Another post owned by Ada.'],
+            ['id' => 3, 'user_id' => 2, 'title' => 'Compiler notes', 'body' => 'Post owned by Grace.'],
+        ] as $post) {
+            DB::table('_lsm_test_posts')->updateOrInsert(
+                ['id' => $post['id']],
+                [...$post, 'created_at' => $now, 'updated_at' => $now],
+            );
+        }
+
+        foreach ([
+            ['id' => 1, 'user_id' => 1, 'post_id' => 1, 'body' => 'Ada comments on her first post.'],
+            ['id' => 2, 'user_id' => 1, 'post_id' => 2, 'body' => 'Ada comments on her second post.'],
+            ['id' => 3, 'user_id' => 2, 'post_id' => 1, 'body' => 'Grace comments on Ada\'s first post.'],
+            ['id' => 4, 'user_id' => 2, 'post_id' => 3, 'body' => 'Grace comments on her compiler notes.'],
+        ] as $comment) {
+            DB::table('_lsm_test_comments')->updateOrInsert(
+                ['id' => $comment['id']],
+                [...$comment, 'created_at' => $now, 'updated_at' => $now],
+            );
+        }
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('_lsm_test_comments');
+        Schema::dropIfExists('_lsm_test_posts');
+        Schema::dropIfExists('_lsm_test_users');
+    }
+};

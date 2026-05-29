@@ -8,18 +8,22 @@ use Illuminate\Filesystem\Filesystem;
 use PDO;
 use RuntimeException;
 
-class SQLiteDatabaseRepository
+class SQLiteManagerRepository
 {
     public function __construct(
-        private readonly SQLiteDatabaseManager $sqLiteDatabaseManager,
+        private readonly SQLiteManager $SQLiteManager,
         private readonly Filesystem $filesystem,
     ) {}
 
     public function databasePath(): string
     {
-        $path = config('sqlite-manager.database_path', database_path('database.sqlite'));
+        $connection = config('sqlite-manager.active_connection', 'default');
+        $connections = config('sqlite-manager.connections', []);
+        $path = is_string($connection) && $connection !== 'default' && is_array($connections) && array_key_exists($connection, $connections)
+            ? $connections[$connection]
+            : config('sqlite-manager.database_path', database_path('database.sqlite'));
 
-        return $this->sqLiteDatabaseManager->resolvePath(is_string($path) ? $path : database_path('database.sqlite'));
+        return $this->SQLiteManager->resolvePath(is_string($path) ? $path : database_path('database.sqlite'));
     }
 
     public function databaseExists(): bool
@@ -108,16 +112,17 @@ class SQLiteDatabaseRepository
 
     /**
      * @param  list<array{column?: string, operator?: string, value?: mixed}>  $filters
-     * @return array{rows: list<array<string, mixed>>, total: int, page: int, per_page: int, last_page: int, columns: list<array{name: string, type: string, nullable: bool, default: mixed, primary: bool}>, primary_key: string|null}
+     * @return array{rows: list<array<string, mixed>>, total: int, page: int, per_page: int, last_page: int, from: int, to: int, columns: list<array{name: string, type: string, nullable: bool, default: mixed, primary: bool}>, primary_key: string|null}
      */
-    public function records(string $table, int $page = 1, int $perPage = 25, ?string $search = null, array $filters = [], ?string $sortColumn = null, string $sortDirection = 'asc'): array
+    public function records(string $table, int $page = 1, int $perPage = 25, ?string $search = null, array $filters = [], ?string $sortColumn = null, string $sortDirection = 'asc', bool $includeSoftDeleted = false): array
     {
         $columns = $this->columns($table);
         $primaryKey = $this->primaryKey($table);
         $search = $this->normalizeSearch($search);
         $where = $this->where($columns, $search, $filters);
+        $where = $this->applySoftDeleteWhere($columns, $includeSoftDeleted, $where);
         $page = max(1, $page);
-        $perPage = max(1, min(100, $perPage));
+        $perPage = max(1, min($this->maxPageSize(), $perPage));
         $total = $this->countMatching($table, $where['sql'], $where['bindings']);
         $offset = ($page - 1) * $perPage;
         $sql = 'SELECT * FROM '.$this->quoteIdentifier($table).$where['sql'];
@@ -134,13 +139,16 @@ class SQLiteDatabaseRepository
         $statement->bindValue('limit', $perPage, PDO::PARAM_INT);
         $statement->bindValue('offset', $offset, PDO::PARAM_INT);
         $statement->execute();
+        $rows = $this->rows($statement->fetchAll(PDO::FETCH_ASSOC));
 
         return [
-            'rows' => $this->rows($statement->fetchAll(PDO::FETCH_ASSOC)),
+            'rows' => $rows,
             'total' => $total,
             'page' => $page,
             'per_page' => $perPage,
             'last_page' => max(1, (int) ceil($total / $perPage)),
+            'from' => $total === 0 ? 0 : $offset + 1,
+            'to' => min($total, $offset + count($rows)),
             'columns' => $columns,
             'primary_key' => $primaryKey,
         ];
@@ -151,11 +159,11 @@ class SQLiteDatabaseRepository
      * @param  list<string>  $selectedKeys
      * @return list<array<string, mixed>>
      */
-    public function exportRows(string $table, ?string $search = null, array $filters = [], array $selectedKeys = [], ?string $sortColumn = null, string $sortDirection = 'asc'): array
+    public function exportRows(string $table, ?string $search = null, array $filters = [], array $selectedKeys = [], ?string $sortColumn = null, string $sortDirection = 'asc', bool $includeSoftDeleted = false): array
     {
         $columns = $this->columns($table);
         $primaryKey = $this->primaryKey($table);
-        $where = $this->where($columns, $this->normalizeSearch($search), $filters);
+        $where = $this->applySoftDeleteWhere($columns, $includeSoftDeleted, $this->where($columns, $this->normalizeSearch($search), $filters));
         $bindings = $where['bindings'];
         $clauses = $where['clauses'];
 
@@ -267,6 +275,10 @@ class SQLiteDatabaseRepository
             return 0;
         }
 
+        if (count($keys) > $this->maxDeleteRows()) {
+            throw new RuntimeException('Bulk delete exceeds the configured row limit.');
+        }
+
         $placeholders = [];
         $bindings = [];
 
@@ -316,6 +328,53 @@ class SQLiteDatabaseRepository
             return null;
         }
 
+        $targetTable = $this->relationTable($table, $column);
+
+        return $targetTable === null ? null : ['table' => $targetTable, 'key' => (string) $value];
+    }
+
+    /**
+     * @return list<array{key: string, label: string}>
+     */
+    public function relationOptions(string $table, string $column, int $limit = 100): array
+    {
+        $targetTable = $this->relationTable($table, $column);
+
+        if ($targetTable === null) {
+            return [];
+        }
+
+        $primaryKey = $this->primaryKey($targetTable);
+
+        if ($primaryKey === null) {
+            return [];
+        }
+
+        $statement = $this->pdo()->prepare('SELECT * FROM '.$this->quoteIdentifier($targetTable).' ORDER BY '.$this->quoteIdentifier($primaryKey).' ASC LIMIT :limit');
+        $statement->bindValue('limit', max(1, $limit), PDO::PARAM_INT);
+        $statement->execute();
+
+        return array_map(
+            fn (array $row): array => [
+                'key' => (string) ($row[$primaryKey] ?? ''),
+                'label' => $this->relationLabel($row, $primaryKey),
+            ],
+            $this->rows($statement->fetchAll(PDO::FETCH_ASSOC)),
+        );
+    }
+
+    private function relationTable(string $table, string $column): ?string
+    {
+        if (! str_ends_with($column, '_id')) {
+            return null;
+        }
+
+        foreach ($this->foreignKeys($table) as $foreignKey) {
+            if ($foreignKey['column'] === $column && $foreignKey['table'] !== $table) {
+                return $foreignKey['table'];
+            }
+        }
+
         $base = substr($column, 0, -3);
         $candidates = array_values(array_unique([$base.'s', $base.'es', $base]));
 
@@ -328,10 +387,103 @@ class SQLiteDatabaseRepository
                 continue;
             }
 
-            return ['table' => $candidate, 'key' => (string) $value];
+            return $candidate;
         }
 
         return null;
+    }
+
+    /** @param array<string, mixed> $row */
+    private function relationLabel(array $row, string $primaryKey): string
+    {
+        $key = (string) ($row[$primaryKey] ?? '');
+
+        foreach (['name', 'title', 'email', 'label', 'display_name', 'slug'] as $column) {
+            $value = $row[$column] ?? null;
+
+            if (is_scalar($value) && (string) $value !== '') {
+                return '#'.$key.' - '.(string) $value;
+            }
+        }
+
+        return '#'.$key;
+    }
+
+    /**
+     * @return array{columns: list<array{name: string, type: string, nullable: bool, default: mixed, primary: bool}>, indexes: list<array{name: string, unique: bool, columns: list<string>}>, foreign_keys: list<array{column: string, table: string, foreign_column: string}>}
+     */
+    public function schema(string $table): array
+    {
+        return [
+            'columns' => $this->columns($table),
+            'indexes' => $this->indexes($table),
+            'foreign_keys' => $this->foreignKeys($table),
+        ];
+    }
+
+    /** @return list<array{name: string, unique: bool, columns: list<string>}> */
+    public function indexes(string $table): array
+    {
+        $this->assertTableExists($table);
+        $statement = $this->pdo()->query('PRAGMA index_list('.$this->quoteIdentifier($table).')');
+
+        if ($statement === false) {
+            return [];
+        }
+
+        $indexes = [];
+
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $index) {
+            if (! is_array($index) || ! is_string($index['name'] ?? null)) {
+                continue;
+            }
+
+            $columns = [];
+            $columnStatement = $this->pdo()->query('PRAGMA index_info('.$this->quoteIdentifier($index['name']).')');
+
+            if ($columnStatement !== false) {
+                foreach ($columnStatement->fetchAll(PDO::FETCH_ASSOC) as $column) {
+                    if (is_array($column) && is_string($column['name'] ?? null)) {
+                        $columns[] = $column['name'];
+                    }
+                }
+            }
+
+            $indexes[] = [
+                'name' => $index['name'],
+                'unique' => $this->integer($index['unique'] ?? 0) === 1,
+                'columns' => $columns,
+            ];
+        }
+
+        return $indexes;
+    }
+
+    /** @return list<array{column: string, table: string, foreign_column: string}> */
+    public function foreignKeys(string $table): array
+    {
+        $this->assertTableExists($table);
+        $statement = $this->pdo()->query('PRAGMA foreign_key_list('.$this->quoteIdentifier($table).')');
+
+        if ($statement === false) {
+            return [];
+        }
+
+        $foreignKeys = [];
+
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $foreignKey) {
+            if (! is_array($foreignKey) || ! is_string($foreignKey['from'] ?? null) || ! is_string($foreignKey['table'] ?? null) || ! is_string($foreignKey['to'] ?? null)) {
+                continue;
+            }
+
+            $foreignKeys[] = [
+                'column' => $foreignKey['from'],
+                'table' => $foreignKey['table'],
+                'foreign_column' => $foreignKey['to'],
+            ];
+        }
+
+        return $foreignKeys;
     }
 
     public function primaryKey(string $table): ?string
@@ -580,6 +732,7 @@ class SQLiteDatabaseRepository
 
             if (in_array($operator, ['is_null', 'is_not_null'], true)) {
                 $where[] = ['sql' => $quotedColumn.' IS '.($operator === 'is_null' ? '' : 'NOT ').'NULL', 'bindings' => []];
+
                 continue;
             }
 
@@ -620,6 +773,37 @@ class SQLiteDatabaseRepository
 
     /**
      * @param  list<array{name: string, type: string, nullable: bool, default: mixed, primary: bool}>  $columns
+     * @param  array{sql: string, clauses: list<string>, bindings: array<string, mixed>}  $where
+     * @return array{sql: string, clauses: list<string>, bindings: array<string, mixed>}
+     */
+    private function applySoftDeleteWhere(array $columns, bool $includeSoftDeleted, array $where): array
+    {
+        if ($includeSoftDeleted || ! $this->hasColumn($columns, 'deleted_at')) {
+            return $where;
+        }
+
+        $where['clauses'][] = $this->quoteIdentifier('deleted_at').' IS NULL';
+        $where['sql'] = $this->whereSql($where['clauses']);
+
+        return $where;
+    }
+
+    /**
+     * @param  list<array{name: string, type: string, nullable: bool, default: mixed, primary: bool}>  $columns
+     */
+    private function hasColumn(array $columns, string $name): bool
+    {
+        foreach ($columns as $column) {
+            if ($column['name'] === $name) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  list<array{name: string, type: string, nullable: bool, default: mixed, primary: bool}>  $columns
      */
     private function orderBy(array $columns, ?string $primaryKey, ?string $sortColumn, string $sortDirection): string
     {
@@ -635,16 +819,30 @@ class SQLiteDatabaseRepository
 
     private function exportLimit(): int
     {
-        $limit = config('sqlite-manager.exports.max_rows', 5000);
+        $limit = config('sqlite-manager.security.limits.max_export_rows', config('sqlite-manager.exports.max_rows', 5000));
 
         return is_numeric($limit) ? max(1, (int) $limit) : 5000;
     }
 
+    private function maxDeleteRows(): int
+    {
+        $limit = config('sqlite-manager.security.limits.max_delete_rows', 100);
+
+        return is_numeric($limit) ? max(1, (int) $limit) : 100;
+    }
+
+    private function maxPageSize(): int
+    {
+        $limit = config('sqlite-manager.security.limits.max_page_size', 100);
+
+        return is_numeric($limit) ? max(1, (int) $limit) : 100;
+    }
+
     private function auditTable(): string
     {
-        $table = config('sqlite-manager.audit.table', 'laravel_sqlite_manager_audit_log');
+        $table = config('sqlite-manager.audit.table', '_lsm_audit_log');
 
-        return is_string($table) && $table !== '' ? $table : 'laravel_sqlite_manager_audit_log';
+        return is_string($table) && $table !== '' ? $table : '_lsm_audit_log';
     }
 
     private function escapeLike(string $value): string
