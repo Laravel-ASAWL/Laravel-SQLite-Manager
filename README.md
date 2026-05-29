@@ -2,7 +2,7 @@
 
 Livewire-powered SQLite database manager for Laravel 13 applications.
 
-This package adds a small web UI for browsing and editing records in a configured SQLite database. It is intended for local development, internal tooling, and controlled admin environments.
+Administer SQLite databases from a Laravel web UI — browse tables, search with filters, create and edit records, import CSV data, export rows, inspect schemas, and toggle Laravel framework tables. Built with single-responsibility Action classes and Livewire 3.
 
 ## Requirements
 
@@ -50,15 +50,27 @@ SQLITE_MANAGER_AUDIT_ENABLED=false
 
 Existing values are preserved and are not duplicated.
 
+## Audit Table
+
+The audit log table can be created using the dedicated Artisan command:
+
+```bash
+php artisan sqlite-manager:create-audit-log-table
+```
+
+The command copies `create_audit_log_table.php.stub` into `database/migrations` and runs `php artisan migrate`. Use `--force` to overwrite the existing migration file and force the migration run, or `--no-migrate` to copy the file without running migrations.
+
+The audit table is created with the name configured in `config('sqlite-manager.audit.table', '_lsm_audit_log')`.
+
 ## Test Data
 
 You can publish and run relationship test migrations for validating `*_id` links and relationship selects:
 
 ```bash
-php artisan sqlite-manager:create-test-table
+php artisan sqlite-manager:create-tests-table
 ```
 
-The command copies package test migrations into `database/migrations` and runs `php artisan migrate`. Use `--force` to overwrite an existing copied migration file, or `--no-migrate` to only copy the files.
+The command copies package test migrations into `database/migrations` and runs `php artisan migrate`. Use `--force` to overwrite existing migration files and force the migration run, or `--no-migrate` to only copy the files.
 
 The test schema creates users, posts, and comments where `posts.user_id`, `comments.user_id`, and `comments.post_id` are real SQLite foreign keys.
 
@@ -170,8 +182,8 @@ If you changed `SQLITE_MANAGER_ROUTE_PREFIX`, use that path instead.
 - Allowlist and denylist controls for exposed tables.
 - Export filtered or selected rows to CSV or JSON.
 - Bulk delete selected rows.
-- Optional audit log for create, update, delete, and bulk delete operations.
-- Publishable audit log migration stub.
+- Optional audit log for create, update, delete, and bulk delete operations with batch import support.
+- Artisan command to create the audit log table (`sqlite-manager:create-audit-log-table`).
 - Schema inspector for table columns, indexes, and foreign keys.
 - Soft delete awareness for tables with `deleted_at` columns.
 - Configurable validation rules per table column.

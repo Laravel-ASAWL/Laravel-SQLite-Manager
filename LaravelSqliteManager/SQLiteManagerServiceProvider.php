@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Asawl\LaravelSqliteManager;
 
 use Asawl\LaravelSqliteManager\Commands\SQLiteManagerCreateAuditLogTableCommand;
-use Asawl\LaravelSqliteManager\Commands\SQLiteManagerInstallCommand;
 use Asawl\LaravelSqliteManager\Commands\SQLiteManagerCreateTestsTableCommand;
+use Asawl\LaravelSqliteManager\Commands\SQLiteManagerInstallCommand;
 use Asawl\LaravelSqliteManager\Livewire\SQLiteManagerLivewire;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Route;

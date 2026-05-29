@@ -21,19 +21,33 @@ All notable changes to `asawl/laravel-sqlite-manager` will be documented in this
 - Added soft delete awareness for tables with `deleted_at` columns.
 - Added per-action authorization gates and operation row limits.
 - Added package-level Testbench scaffolding for standalone package tests.
-- Added a publishable audit log migration stub.
-- Added `sqlite-manager:create-test-table` to copy relationship test migrations into a Laravel project and run them.
+- Added `sqlite-manager:create-tests-table` command to copy relationship test migrations into a Laravel project and run them.
+- Added `sqlite-manager:create-audit-log-table` command to copy the audit log migration stub and run `php artisan migrate`.
 - Added dark mode configuration, improved pagination controls, persisted filters, and edit diff hints.
+- Added 19 repository unit tests covering CRUD, pagination, filters, sorting, export, and batch audit.
+- Added 8 single-responsibility Action classes: `ConnectionManager`, `InputValidator`, `ListTablesAction`, `BrowseRecordsAction`, `ManageRecordAction`, `ImportRecordsAction`, `InspectTableAction`, `LogAction`.
+- Added PRAGMA query result caching per database path within the same request.
+- Added batch audit logging for CSV imports (single batch entry instead of N individual entries).
+- Added Livewire traits: `WithPreferences`, `WithFormHelpers`, `WithFilters`.
+- Added nullable field visibility control to the edit record form.
 
 ### Changed
 
+- Refactored `SQLiteManagerRepository` to delegate all operations to Action classes via composition.
+- Replaced explicit `resolve()` calls in the Livewire component with constructor injection via `boot()`.
+- Improved type safety across the repository, Livewire component, and Action classes.
 - Updated root development dependencies and package dependency constraints from Laravel 12 to Laravel 13.
 - Raised the minimum PHP requirement to 8.3 to match Laravel 13.
 - Updated package metadata and README references for Laravel 13 support.
 - Removed third-party theme wording from the package UI and stylesheet internals.
-- Added nullable field visibility control to the edit record form.
 - Moved package `config`, `resources`, `routes`, and `tests` directories to the package root.
 - Split access control, validation, audit logging, exports, imports, and schema inspection into support services.
+
+### Removed
+
+- Removed dead `formValidationRules()` method from the Livewire component.
+- Removed unused `integer()` method from the repository.
+- Removed publishable audit log migration from sqlite-manager:install command (replaced by `sqlite-manager:create-audit-log-table` command).
 
 ## 1.0.0 - 2026-05-28
 
