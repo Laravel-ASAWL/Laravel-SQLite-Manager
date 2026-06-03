@@ -37,6 +37,7 @@ return [
 
     'tables' => [
         'show_laravel_tables' => env('SQLITE_MANAGER_SHOW_LARAVEL_TABLES', false),
+        'show_test_tables' => env('SQLITE_MANAGER_SHOW_TEST_TABLES', false),
         'show_soft_deleted' => false,
         'allow' => [],
         'deny' => [],
@@ -50,6 +51,9 @@ return [
             'password_reset_tokens',
             'sessions',
             'telescope_*',
+        ],
+        'test_table_patterns' => [
+            '_lsm_test_*',
         ],
     ],
 

@@ -32,15 +32,15 @@ class SQLiteManagerRepository
     }
 
     /** @return list<array{name: string, rows: int, columns: int}> */
-    public function tableSummaries(bool $includeLaravelTables = false): array
+    public function tableSummaries(bool $includeLaravelTables = false, bool $includeTestTables = false): array
     {
-        return $this->listTablesAction->summaries($this->connection(), $includeLaravelTables);
+        return $this->listTablesAction->summaries($this->connection(), $includeLaravelTables, $includeTestTables);
     }
 
     /** @return list<string> */
-    public function tables(bool $includeLaravelTables = true): array
+    public function tables(bool $includeLaravelTables = true, bool $includeTestTables = false): array
     {
-        return $this->listTablesAction->all($this->connection(), $includeLaravelTables);
+        return $this->listTablesAction->all($this->connection(), $includeLaravelTables, $includeTestTables);
     }
 
     /** @return list<array{name: string, type: string, nullable: bool, default: mixed, primary: bool}> */

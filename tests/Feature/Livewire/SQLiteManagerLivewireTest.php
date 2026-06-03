@@ -65,6 +65,25 @@ test('it can show laravel framework tables on the dashboard', function (): void 
         ->assertSee('telescope_entries');
 });
 
+test('it shows and hides test tables with the show test tables toggle', function (): void {
+    $pdo = new PDO('sqlite:'.$this->databasePath);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo->exec('CREATE TABLE _lsm_test_posts (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT)');
+    $pdo->exec('CREATE TABLE _lsm_test_comments (id INTEGER PRIMARY KEY AUTOINCREMENT, body TEXT)');
+
+    config()->set('sqlite-manager.tables.test_table_patterns', ['_lsm_test_*']);
+
+    Livewire::test(SQLiteManagerLivewire::class)
+        ->assertDontSee('_lsm_test_posts')
+        ->assertDontSee('_lsm_test_comments')
+        ->set('showTestTables', true)
+        ->assertSee('_lsm_test_posts')
+        ->assertSee('_lsm_test_comments')
+        ->set('showTestTables', false)
+        ->assertDontSee('_lsm_test_posts')
+        ->assertDontSee('_lsm_test_comments');
+});
+
 test('it can restrict manager access by environment and gate', function (): void {
     config()->set('sqlite-manager.security.allowed_environments', ['production']);
 

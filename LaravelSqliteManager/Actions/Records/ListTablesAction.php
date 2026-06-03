@@ -16,30 +16,37 @@ class ListTablesAction
     ) {}
 
     /** @return list<array{name: string, rows: int, columns: int}> */
-    public function summaries(string $connection, bool $includeLaravelTables = false): array
+    public function summaries(string $connection, bool $includeLaravelTables = false, bool $includeTestTables = false): array
     {
         return array_map(fn (string $table): array => [
             'name' => $table,
             'rows' => $this->count($table, $connection),
             'columns' => count($this->columns($table, $connection)),
-        ], $this->all($connection, $includeLaravelTables));
+        ], $this->all($connection, $includeLaravelTables, $includeTestTables));
     }
 
     /** @return list<string> */
-    public function all(string $connection, bool $includeLaravelTables = false): array
+    public function all(string $connection, bool $includeLaravelTables = false, bool $includeTestTables = false): array
     {
         $tables = $this->connectionManager->fetchTableNames($connection);
 
         $tables = array_values(array_filter($tables, $this->isAllowedTable(...)));
 
-        if ($includeLaravelTables) {
-            return $tables;
+        if (! $includeLaravelTables) {
+            $tables = array_values(array_filter(
+                $tables,
+                fn (string $table): bool => ! $this->isLaravelTable($table),
+            ));
         }
 
-        return array_values(array_filter(
-            $tables,
-            fn (string $table): bool => ! $this->isLaravelTable($table),
-        ));
+        if (! $includeTestTables) {
+            $tables = array_values(array_filter(
+                $tables,
+                fn (string $table): bool => ! $this->isTestTable($table),
+            ));
+        }
+
+        return $tables;
     }
 
     public function count(string $table, string $connection): int
@@ -103,6 +110,19 @@ class ListTablesAction
         return false;
     }
 
+    private function isTestTable(string $table): bool
+    {
+        foreach ($this->testTablePatterns() as $pattern) {
+            $pattern = str_replace('\\*', '.*', preg_quote($pattern, '/'));
+
+            if (preg_match('/^'.$pattern.'$/', $table) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function isAllowedTable(string $table): bool
     {
         $allow = $this->configuredTablePatterns('allow');
@@ -145,6 +165,18 @@ class ListTablesAction
     private function laravelTablePatterns(): array
     {
         $patterns = config('sqlite-manager.tables.laravel_table_patterns', []);
+
+        if (! is_array($patterns)) {
+            return [];
+        }
+
+        return array_values(array_filter($patterns, is_string(...)));
+    }
+
+    /** @return list<string> */
+    private function testTablePatterns(): array
+    {
+        $patterns = config('sqlite-manager.tables.test_table_patterns', []);
 
         if (! is_array($patterns)) {
             return [];

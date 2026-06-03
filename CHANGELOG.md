@@ -2,83 +2,102 @@
 
 All notable changes to `asawl/laravel-sqlite-manager` will be documented in this file.
 
-## 2.0.0 - 2026-05-28
+## 1.0.2 - 2026-06-03
 
 ### Added
 
-- Added environment and gate based access controls, read-only mode, and table allow/deny lists.
-- Added CSV and JSON exports for current filters and selected rows.
-- Added bulk delete actions for selected records.
-- Added optional audit logging for create, update, delete, and bulk delete operations.
-- Added configurable validation rules for table forms.
-- Added advanced column filters (`equals`, `not_equals`, `gt`, `gte`, `lt`, `lte`, `contains`, `starts_with`, `ends_with`, `is_null`, `is_not_null`) and sortable table headers.
-- Added conventional `*_id` relationship links to related tables.
-- Added expanded JSON/TEXT editing and JSON previews.
-- Added GitHub Actions test matrix for Laravel 13 on PHP 8.3 and 8.4.
-- Added configurable SQLite connections with an in-UI connection selector.
-- Added a schema inspector for table columns, indexes, and foreign keys.
-- Added CSV import with a configurable row limit, key trimming, value truncation at 65535 chars, and `_extra_N` columns for extra CSV data.
-- Added soft delete awareness for tables with `deleted_at` columns.
-- Added per-action authorization gates and operation row limits.
-- Added package-level Testbench scaffolding for standalone package tests.
-- Added `sqlite-manager:create-tests-table` command to copy relationship test migrations into a Laravel project and run them.
-- Added `sqlite-manager:create-audit-log-table` command to copy the audit log migration stub and run `php artisan migrate`.
-- Added dark mode configuration, improved pagination controls, persisted filters, and edit diff hints.
-- Added 19 repository unit tests covering CRUD, pagination, filters, sorting, export, and batch audit.
-- Added 8 single-responsibility Action classes: `ConnectionManager`, `InputValidator`, `ListTablesAction`, `BrowseRecordsAction`, `ManageRecordAction`, `ImportRecordsAction`, `InspectTableAction`, `LogAction`.
-- Added PRAGMA query result caching per database path within the same request.
-- Added batch audit logging for CSV imports (single batch entry instead of N individual entries).
-- Added Livewire traits: `WithPreferences`, `WithFormHelpers`, `WithFilters`.
-- Added nullable field visibility control to the edit record form.
-- Added 7 new tests: `SQLiteManagerCreateAuditLogTableCommandTest` (3 tests: copy, already-exists, force overwrite) and `ConnectionManagerTest` (4 tests: connection names, validation, edge cases).
+- Dedicated audit log module with a new Livewire component (`AuditLogLivewire`), independent from the generic table browser, accessible via a new route `sqlite-manager.audit` and sidebar link.
+- Audit log entry filters by action type and table name with auto-populated dropdowns from existing entries.
+- Detail modal for audit log entries showing before/after values side by side with pretty-printed JSON, accessible from both the audit module and the generic table browser.
+- Colored action badges in the audit log table (`create` green, `update` blue, `delete` red, `bulk_delete` orange, `import` purple).
+- Automatic `created_at`/`updated_at`/`deleted_at` column detection in the generic `display-value` component, formatting timestamps even when the SQLite column type is `TEXT`.
+- Test table filtering: new `showTestTables` Livewire property with `#[Url]` attribute, cookie persistence, and config-driven default (`sqlite-manager.tables.show_test_tables`).
+- Configurable `test_table_patterns` key (`_lsm_test_*` by default) in `config/sqlite-manager.php`.
+- `isTestTable()` method in `ListTablesAction` with glob-style pattern matching via `testTablePatterns()`.
+- "Show test tables" toggle switch in the Manager tools dashboard panel.
+- `Show Audit Log` tile in the Manager tools dashboard for quick access to the audit module.
+- Query parameter hydration for `?test_tables` in `hydrateQueryParameters()`, mirroring the `?laravel_tables` handling.
+
+### Changed
+
+- Audit logging is now **enabled by default** (`audit.enabled` default changed from `false` to `true`); the install command now writes `SQLITE_MANAGER_AUDIT_ENABLED=true` to `.env`.
+- The `display-value` Blade component now supports a `badge` prop and a `column` prop for value-colorized badges and column-name-aware date formatting.
+- Sidebar reorganized: the "Audit Log" link is now pinned at the top of the sidebar, above the tables list.
+- `ListTablesAction::all()` and `summaries()` now accept an `$includeTestTables` parameter (default `false`) to control test table visibility.
+- `SQLiteManagerRepository::tableSummaries()` and `tables()` pass through the `$includeTestTables` parameter to the action layer.
+- Test tables are now hidden by default when no test tables config is published (empty pattern list).
+
+### Fixed
+
+- Sidebar table list now scrolls properly on desktop — replaced flex-based sizing (which broke on `<details>` elements) with explicit `max-height: calc(100vh - 200px)` and `overflow-y: auto`.
+- Removed redundant double border between sidebar sections — `.explorer-features` no longer has `border-bottom` (the tables summary `border-top` provides the single separator).
+- Normalized sidebar spacing: `.explorer-features` now uses `padding: 10px 10px 0` (mobile) and `padding: 14px 12px 0` (desktop), consistent with `.explorer-section`.
+- Fixed excessive gap between Audit Log link and Tables summary by removing the nav's bottom padding (only the item's `margin-bottom: 4px` remains).
+- Added `x-cloak` CSS rule to prevent Alpine modal flicker.
+- Fixed Pint formatting in the audit migration stub (`declare(strict_types=1)`, `new class()` parentheses, brace positioning).
+
+## 1.0.1 - 2026-05-30
+
+### Added
+
+- Environment and gate based access controls, read-only mode, and table allow/deny lists.
+- CSV and JSON exports for current filters and selected rows.
+- Bulk delete actions for selected records.
+- Configurable validation rules for table forms.
+- Advanced column filters (`equals`, `not_equals`, `gt`, `gte`, `lt`, `lte`, `contains`, `starts_with`, `ends_with`, `is_null`, `is_not_null`) and sortable table headers.
+- Conventional `*_id` relationship links to related tables.
+- Expanded JSON/TEXT editing and JSON previews.
+- GitHub Actions test matrix for Laravel 13 on PHP 8.3 and 8.4.
+- Configurable SQLite connections with an in-UI connection selector.
+- Schema inspector for table columns, indexes, and foreign keys.
+- CSV import with configurable row limit, key trimming, value truncation at 65535 chars, and `_extra_N` columns for extra CSV data.
+- Soft delete awareness for tables with `deleted_at` columns.
+- Per-action authorization gates and operation row limits.
+- Package-level Testbench scaffolding for standalone package tests.
+- `sqlite-manager:create-tests-table` and `sqlite-manager:create-audit-log-table` Artisan commands.
+- Dark mode configuration, improved pagination controls, persisted filters, and edit diff hints.
+- 19 repository unit tests covering CRUD, pagination, filters, sorting, export, and batch audit.
+- 8 single-responsibility Action classes: `ConnectionManager`, `InputValidator`, `ListTablesAction`, `BrowseRecordsAction`, `ManageRecordAction`, `ImportRecordsAction`, `InspectTableAction`, `LogAction`.
+- PRAGMA query result caching per database path within the same request.
+- Batch audit logging for CSV imports (single batch entry instead of N individual entries).
+- Livewire traits: `WithPreferences`, `WithFormHelpers`, `WithFilters`.
+- Nullable field visibility control to the edit record form.
+- 7 new tests: `SQLiteManagerCreateAuditLogTableCommandTest` (3 tests) and `ConnectionManagerTest` (4 tests).
 
 ### Changed
 
 - Refactored `SQLiteManagerRepository` to delegate all operations to Action classes via composition.
 - Replaced explicit `resolve()` calls in the Livewire component with constructor injection via `boot()`.
-- Injected `ConnectionManager` into the Livewire component; `connectionNames()` and `validConnection()` now delegate to it instead of duplicating the logic.
-- Delegated CSV import loop in `Livewire::importCsv()` to `ImportRecordsAction::import()` via `repository->importRows()`, eliminating duplicated row sanitization and limit checking.
-- Delegated `InspectTableAction::columns()` to `ListTablesAction::columns()`, eliminating duplicated PRAGMA `table_info` parsing.
-- Improved type safety across the repository, Livewire component, and Action classes.
-- Updated root development dependencies and package dependency constraints from Laravel 12 to Laravel 13.
-- Raised the minimum PHP requirement to 8.3 to match Laravel 13.
-- Updated package metadata and README references for Laravel 13 support.
-- Removed third-party theme wording from the package UI and stylesheet internals.
+- Injected `ConnectionManager` into the Livewire component; `connectionNames()` and `validConnection()` now delegate to it.
+- Delegated CSV import loop to `ImportRecordsAction::import()` via `repository->importRows()`.
+- Delegated `InspectTableAction::columns()` to `ListTablesAction::columns()`.
+- Updated package dependency constraints from Laravel 12 to Laravel 13; raised minimum PHP to 8.3.
 - Moved package `config`, `resources`, `routes`, and `tests` directories to the package root.
-- Split access control, validation, audit logging, exports, imports, and schema inspection into support services.
 
 ### Fixed
 
-- **Critical**: `Livewire/WithFilters.php::activeFilters()` now permits `is_null`/`is_not_null` operators through even when the filter value is empty, making these operators actually work in the UI.
-- **High**: `SQLiteManagerRepository::find()` now validates the primary key with `validatePrimaryKey()`, matching the behavior of `update()` and `delete()`.
-- **Medium**: Fixed `_key` spread collision in `ImportRecordsAction::import()` and `Livewire::importCsv()` — `_key` is now set after the row spread, preventing a CSV column named `_key` from overwriting the audit key.
-- **Medium**: `DataExporter` now throws `RuntimeException` when `fopen('php://output')` fails, instead of silently returning an empty 200 response.
-- **Low**: `LogAction` now wraps `json_encode` in a `safeJsonEncode()` method that catches `JsonException` and falls back to an error placeholder, preventing crashes on BLOB/binary audit data.
-- **Low**: `CsvImporter` now checks the `fwrite()` return value and throws `RuntimeException` on write failure, preventing silent data truncation.
-- **Low**: `CsvImporter` now preserves extra CSV columns (beyond the header count) as `_extra_N` columns instead of silently dropping them.
-- **Info**: `BrowseRecordsAction` now returns `last_page = 0` when `total = 0`, eliminating misleading "Page 1 of 1" for empty tables.
+- **Critical**: `Livewire/WithFilters.php::activeFilters()` now permits `is_null`/`is_not_null` operators through with empty value.
+- **High**: `SQLiteManagerRepository::find()` now validates the primary key with `validatePrimaryKey()`.
+- **Medium**: Fixed `_key` spread collision in `ImportRecordsAction::import()` — `_key` is set after the row spread.
+- **Medium**: `DataExporter` now throws `RuntimeException` on `fopen('php://output')` failure.
+- **Low**: `LogAction::safeJsonEncode()` catches `JsonException` and falls back to an error placeholder.
+- **Low**: `CsvImporter` checks `fwrite()` return value and throws `RuntimeException` on write failure.
+- **Low**: `CsvImporter` preserves extra CSV columns as `_extra_N` columns.
+- **Info**: `BrowseRecordsAction` returns `last_page = 0` when `total = 0`.
 
 ### Removed
 
-- Removed dead `formValidationRules()` method from the Livewire component.
-- Removed unused `integer()` method from the repository.
-- Removed publishable audit log migration from `sqlite-manager:install` command (replaced by `sqlite-manager:create-audit-log-table` command).
-- Removed dead method `SQLiteManagerRepository::databaseExists()` — never called.
-- Removed dead method `SQLiteManagerRepository::primaryKey()` — never called.
-- Removed dead method `SQLiteManagerRepository::indexes()` — unused in production code.
-- Removed dead method `SQLiteManagerRepository::foreignKeys()` — unused in production code.
-- Removed dead method `ConnectionManager::clearConnection()` — never called.
-- Removed dead method `InputValidator::validateColumnName()` — never called.
-- Removed dead method `InputValidator::assertNumeric()` — never called.
-- Removed dead method `ImportRecordsAction::parseCsv()` — never called.
-- Removed unused config key `audit.migration` from `config/sqlite-manager.php`.
-- Removed duplicate config key `security.limits.max_export_rows` — use `exports.max_rows` instead.
-- Removed dead CSS class `.empty-state` (`.empty` retained).
-- Removed unused CSS custom property `--manager-success`.
-- Removed Bootstrap 5 JS bundle from `layouts/app.blade.php` — no Bootstrap JS components were used.
-- Removed bare `wire:submit.prevent` without handler from `manager.blade.php` — search is handled by debounced model binding.
-- Removed redundant `$showLaravelTables` view variable from `Livewire::render()` — already a public Livewire property, never accessed as `$showLaravelTables` in Blade.
-- Removed unused `configuredPath()` and `importLimit()` private methods from Livewire component.
+- Dead `formValidationRules()` method from the Livewire component.
+- Unused `integer()` method from the repository.
+- Publishable audit log migration from `sqlite-manager:install` command.
+- Dead methods: `SQLiteManagerRepository::databaseExists()`, `::primaryKey()`, `::indexes()`, `::foreignKeys()`.
+- Dead methods: `ConnectionManager::clearConnection()`, `InputValidator::validateColumnName()`, `InputValidator::assertNumeric()`, `ImportRecordsAction::parseCsv()`.
+- Unused config key `audit.migration` and duplicate key `security.limits.max_export_rows`.
+- Dead CSS class `.empty-state` and unused custom property `--manager-success`.
+- Bootstrap 5 JS bundle from `layouts/app.blade.php`.
+- Bare `wire:submit.prevent` without handler from `manager.blade.php`.
+- Redundant `$showLaravelTables` view variable from `Livewire::render()`.
+- Unused `configuredPath()` and `importLimit()` private methods from the Livewire component.
 
 ## 1.0.0 - 2026-05-28
 

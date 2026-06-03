@@ -13,6 +13,7 @@ trait WithPreferences
     {
         $perPage = $this->cookiePreference($this->perPageCookieName());
         $showLaravelTables = $this->cookiePreference($this->showLaravelTablesCookieName());
+        $showTestTables = $this->cookiePreference($this->showTestTablesCookieName());
         $showNullableFields = $this->cookiePreference($this->showNullableFieldsCookieName());
         $showSoftDeleted = $this->cookiePreference($this->showSoftDeletedCookieName());
         $selectedColumns = $this->cookiePreference($this->selectedColumnsCookieName());
@@ -24,6 +25,10 @@ trait WithPreferences
 
         if (is_string($showLaravelTables)) {
             $this->showLaravelTables = filter_var($showLaravelTables, FILTER_VALIDATE_BOOL);
+        }
+
+        if (is_string($showTestTables)) {
+            $this->showTestTables = filter_var($showTestTables, FILTER_VALIDATE_BOOL);
         }
 
         if (is_string($showNullableFields)) {
@@ -116,6 +121,11 @@ trait WithPreferences
     private function showLaravelTablesCookieName(): string
     {
         return 'sqlite_manager_show_laravel_tables';
+    }
+
+    private function showTestTablesCookieName(): string
+    {
+        return 'sqlite_manager_show_test_tables';
     }
 
     private function showNullableFieldsCookieName(): string

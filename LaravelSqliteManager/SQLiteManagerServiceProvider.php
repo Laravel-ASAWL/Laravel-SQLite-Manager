@@ -7,6 +7,7 @@ namespace Asawl\LaravelSqliteManager;
 use Asawl\LaravelSqliteManager\Commands\SQLiteManagerCreateAuditLogTableCommand;
 use Asawl\LaravelSqliteManager\Commands\SQLiteManagerCreateTestsTableCommand;
 use Asawl\LaravelSqliteManager\Commands\SQLiteManagerInstallCommand;
+use Asawl\LaravelSqliteManager\Livewire\AuditLogLivewire;
 use Asawl\LaravelSqliteManager\Livewire\SQLiteManagerLivewire;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Route;
@@ -25,6 +26,7 @@ class SQLiteManagerServiceProvider extends ServiceProvider
         $this->loadViewsFrom($this->packagePath('resources/views'), 'sqlite-manager');
         Blade::anonymousComponentPath($this->packagePath('resources/views/components'), 'sqlite-manager');
         Livewire::component('sqlite-manager.manager', SQLiteManagerLivewire::class);
+        Livewire::component('sqlite-manager.audit-log', AuditLogLivewire::class);
 
         $this->registerRoutes();
 

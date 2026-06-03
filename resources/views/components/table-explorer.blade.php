@@ -10,6 +10,15 @@
         <a class="brand" href="{{ route('sqlite-manager.index') }}">SQLite Manager</a>
         <span>Database manager</span>
     </div>
+    <nav class="explorer-menu explorer-features">
+        <a
+            @class(['explorer-item list-group-item list-group-item-action', 'active' => $activeTableName === '_lsm_audit_log'])
+            href="{{ route('sqlite-manager.audit') }}"
+        >
+            <span class="object-icon">A</span>
+            <span class="explorer-name">Audit Log</span>
+        </a>
+    </nav>
     <details class="explorer-menu" open>
         <summary class="explorer-summary">
             <span>Tables</span>

@@ -76,6 +76,9 @@ class SQLiteManagerLivewire extends Component
     #[Url(as: 'laravel_tables', except: false)]
     public bool $showLaravelTables = false;
 
+    #[Url(as: 'test_tables', except: false)]
+    public bool $showTestTables = false;
+
     public ?string $status = null;
 
     public ?string $error = null;
@@ -109,6 +112,7 @@ class SQLiteManagerLivewire extends Component
         $this->applySelectedConnection();
         $this->showLaravelTables = $this->defaultShowLaravelTables();
         $this->showSoftDeleted = $this->defaultShowSoftDeleted();
+        $this->showTestTables = $this->defaultShowTestTables();
         $this->perPage = $this->perPage > 0 ? $this->perPage : $this->defaultPerPage();
         $this->hydrateCookiePreferences();
         $this->hydrateQueryParameters();
@@ -143,7 +147,7 @@ class SQLiteManagerLivewire extends Component
 
         if ($exists) {
             try {
-                $tables = $this->repository->tableSummaries($this->showLaravelTables);
+                $tables = $this->repository->tableSummaries($this->showLaravelTables, $this->showTestTables);
             } catch (RuntimeException $exception) {
                 $error = $exception->getMessage();
             }
@@ -425,6 +429,12 @@ class SQLiteManagerLivewire extends Component
         $this->rememberPreference($this->showLaravelTablesCookieName(), $this->showLaravelTables ? '1' : '0');
     }
 
+    public function updatedShowTestTables(): void
+    {
+        $this->page = 1;
+        $this->rememberPreference($this->showTestTablesCookieName(), $this->showTestTables ? '1' : '0');
+    }
+
     public function updatedShowNullableFields(): void
     {
         $this->rememberPreference($this->showNullableFieldsCookieName(), $this->showNullableFields ? '1' : '0');
@@ -587,6 +597,11 @@ class SQLiteManagerLivewire extends Component
         return (bool) config('sqlite-manager.tables.show_laravel_tables', false);
     }
 
+    private function defaultShowTestTables(): bool
+    {
+        return (bool) config('sqlite-manager.tables.show_test_tables', false);
+    }
+
     private function defaultShowSoftDeleted(): bool
     {
         return (bool) config('sqlite-manager.tables.show_soft_deleted', false);
@@ -706,6 +721,7 @@ class SQLiteManagerLivewire extends Component
         $page = request()->query('page');
         $perPage = request()->query('per_page');
         $showLaravelTables = request()->query('laravel_tables');
+        $showTestTables = request()->query('test_tables');
         $selectedColumns = request()->query('cols');
 
         if (is_string($search)) {
@@ -722,6 +738,10 @@ class SQLiteManagerLivewire extends Component
 
         if ($showLaravelTables !== null) {
             $this->showLaravelTables = filter_var($showLaravelTables, FILTER_VALIDATE_BOOL);
+        }
+
+        if ($showTestTables !== null) {
+            $this->showTestTables = filter_var($showTestTables, FILTER_VALIDATE_BOOL);
         }
 
         if (is_array($selectedColumns)) {

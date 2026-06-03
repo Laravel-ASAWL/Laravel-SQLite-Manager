@@ -53,6 +53,15 @@
                             />
                             <span class="form-check-label">Show Laravel tables</span>
                         </label>
+                        <label class="laravel-tables-toggle form-check form-switch mt-1">
+                            <input
+                                class="form-check-input"
+                                type="checkbox"
+                                role="switch"
+                                wire:model.live="showTestTables"
+                            />
+                            <span class="form-check-label">Show test tables</span>
+                        </label>
                         <div class="object-grid tables-list mt-3">
                             <div class="object-tile list-group-item">
                                 <span class="object-icon">B</span>
@@ -73,6 +82,13 @@
                                 <span>
                                     <strong>Filter framework tables</strong>
                                     <small>Keep Laravel internals hidden by default, with quick access when needed.</small>
+                                </span>
+                            </div>
+                            <div class="object-tile list-group-item">
+                                <span class="object-icon">A</span>
+                                <span>
+                                    <strong><a href="{{ route('sqlite-manager.audit') }}">Show Audit Log</a></strong>
+                                    <small>Review all create, update, delete, and import operations with before/after values.</small>
                                 </span>
                             </div>
                         </div>
@@ -182,6 +198,8 @@
                 </form>
             </section>
         @elseif ($records !== null)
+            @php $isAuditLog = $table === '_lsm_audit_log'; @endphp
+
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
                     <li class="breadcrumb-item"><a href="{{ route('sqlite-manager.index') }}">Database</a></li>
@@ -189,7 +207,11 @@
                 </ol>
             </nav>
 
-            <section class="panel data-panel card shadow-sm">
+            <section
+                class="panel data-panel card shadow-sm"
+                x-data="{ detailRecord: null }"
+                @keydown.escape.window="detailRecord = null"
+            >
                 <div class="toolbar card-header">
                     <div>
                         <p class="eyebrow">Table data</p>
@@ -353,19 +375,29 @@
                                             @php
                                                 $cellValue = $row[$column['name']] ?? null;
                                                 $relationshipUrl = $this->relationshipUrl($column['name'], $cellValue);
+                                                $showBadge = $isAuditLog && $column['name'] === 'action';
                                             @endphp
 
                                             @if ($relationshipUrl !== null)
                                                 <a href="{{ $relationshipUrl }}">
-                                                    <x-sqlite-manager::display-value :value="$cellValue" :type="$column['type']" />
+                                                    <x-sqlite-manager::display-value :value="$cellValue" :type="$column['type']" :column="$column['name']" :badge="$showBadge" />
                                                 </a>
                                             @else
-                                                <x-sqlite-manager::display-value :value="$cellValue" :type="$column['type']" />
+                                                <x-sqlite-manager::display-value :value="$cellValue" :type="$column['type']" :column="$column['name']" :badge="$showBadge" />
                                             @endif
                                         </td>
                                     @endforeach
 
                                     <td class="actions">
+                                        @if ($isAuditLog)
+                                            <button
+                                                class="btn btn-sm btn-outline-secondary"
+                                                type="button"
+                                                @click="detailRecord = @js($row)"
+                                            >
+                                                View
+                                            </button>
+                                        @endif
                                         @if ($records['primary_key'] !== null && $recordKey !== '')
                                             @if ($this->canAction('update') || $this->canAction('delete'))
                                                 @if ($this->canAction('update'))
@@ -405,6 +437,71 @@
                 @if ($records['last_page'] > 1)
                     <x-sqlite-manager::pagination-controls :records="$records" />
                 @endif
+
+                <div
+                    class="modal-backdrop audit-modal-backdrop"
+                    x-show="detailRecord !== null"
+                    x-cloak
+                    @click="detailRecord = null"
+                ></div>
+                <div
+                    class="modal audit-modal"
+                    role="dialog"
+                    tabindex="-1"
+                    x-show="detailRecord !== null"
+                    x-cloak
+                    @click.outside="detailRecord = null"
+                >
+                    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" x-text="'Audit Log — ' + (detailRecord?.action || '')"></h5>
+                                <button type="button" class="btn-close" @click="detailRecord = null"></button>
+                            </div>
+                            <div class="modal-body">
+                                <template x-if="detailRecord">
+                                    <div>
+                                        <dl class="audit-detail-grid">
+                                            <dt>Action</dt>
+                                            <dd>
+                                                <span class="badge audit-badge" x-text="detailRecord.action"
+                                                    :style="{
+                                                        '--badge-bg': detailRecord.action === 'create' ? '#ecfdf5' : detailRecord.action === 'update' ? '#eff6ff' : detailRecord.action === 'delete' ? '#fef2f2' : detailRecord.action === 'bulk_delete' ? '#fff7ed' : detailRecord.action === 'import' ? '#f5f3ff' : '#f3f4f6',
+                                                        '--badge-fg': detailRecord.action === 'create' ? '#047857' : detailRecord.action === 'update' ? '#1d4ed8' : detailRecord.action === 'delete' ? '#b91c1c' : detailRecord.action === 'bulk_delete' ? '#c2410c' : detailRecord.action === 'import' ? '#6d28d9' : '#374151'
+                                                    }"
+                                                ></span>
+                                            </dd>
+
+                                            <dt>Table</dt>
+                                            <dd x-text="detailRecord.table_name"></dd>
+
+                                            <dt>Record Key</dt>
+                                            <dd x-text="detailRecord.record_key ?? 'N/A'"></dd>
+
+                                            <dt>Timestamp</dt>
+                                            <dd x-text="detailRecord.created_at"></dd>
+                                        </dl>
+
+                                        <div class="audit-compare">
+                                            <div class="audit-compare-col">
+                                                <strong class="audit-compare-label">Before</strong>
+                                                <pre class="json-preview audit-json-block" x-text="detailRecord.before_values ?? '(empty)'"></pre>
+                                            </div>
+                                            <div class="audit-compare-arrow">&rarr;</div>
+                                            <div class="audit-compare-col">
+                                                <strong class="audit-compare-label">After</strong>
+                                                <pre class="json-preview audit-json-block" x-text="detailRecord.after_values ?? '(empty)'"></pre>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" @click="detailRecord = null">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </section>
         @endif
     </x-sqlite-manager::studio-shell>
