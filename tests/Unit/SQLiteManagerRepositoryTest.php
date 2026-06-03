@@ -12,7 +12,6 @@ use Asawl\LaravelSqliteManager\Actions\Security\ConnectionManager;
 use Asawl\LaravelSqliteManager\Actions\Security\InputValidator;
 use Asawl\LaravelSqliteManager\SQLiteManager;
 use Asawl\LaravelSqliteManager\SQLiteManagerRepository;
-use Asawl\LaravelSqliteManager\Support\CsvImporter;
 use Illuminate\Filesystem\Filesystem;
 
 beforeEach(function (): void {
@@ -34,8 +33,8 @@ beforeEach(function (): void {
     $listTables = new ListTablesAction($connectionManager, $inputValidator);
     $browseRecords = new BrowseRecordsAction($connectionManager, $inputValidator, $listTables);
     $manageRecord = new ManageRecordAction($connectionManager, $inputValidator, $listTables);
-    $importRecords = new ImportRecordsAction(new CsvImporter(), $manageRecord);
-    $inspectTable = new InspectTableAction($connectionManager, $inputValidator);
+    $importRecords = new ImportRecordsAction($manageRecord);
+    $inspectTable = new InspectTableAction($connectionManager, $inputValidator, $listTables);
     $logAction = new LogAction($connectionManager, $inputValidator);
 
     $this->repository = new SQLiteManagerRepository(

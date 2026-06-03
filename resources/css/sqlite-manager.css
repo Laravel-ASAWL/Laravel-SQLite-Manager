@@ -12,7 +12,7 @@
     --manager-muted: #747481;
     --manager-sidebar: #ffffff;
     --manager-sidebar-active: #fff1f0;
-    --manager-success: #059669;
+
 }
 
 @media (prefers-color-scheme: dark) {
@@ -818,8 +818,7 @@ textarea.form-control {
     margin-bottom: 18px;
 }
 
-.empty,
-.empty-state {
+.empty {
     color: var(--manager-muted);
     padding: 22px;
     text-align: center;

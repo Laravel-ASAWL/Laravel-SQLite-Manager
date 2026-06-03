@@ -31,7 +31,6 @@ return [
         ],
         'limits' => [
             'max_delete_rows' => 100,
-            'max_export_rows' => 5000,
             'max_page_size' => 100,
         ],
     ],
@@ -59,9 +58,8 @@ return [
     ],
 
     'audit' => [
-        'enabled' => env('SQLITE_MANAGER_AUDIT_ENABLED', false),
+        'enabled' => env('SQLITE_MANAGER_AUDIT_ENABLED', true),
         'table' => '_lsm_audit_log',
-        'migration' => true,
     ],
 
     'exports' => [

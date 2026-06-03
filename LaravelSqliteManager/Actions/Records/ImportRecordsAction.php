@@ -4,18 +4,16 @@ declare(strict_types=1);
 
 namespace Asawl\LaravelSqliteManager\Actions\Records;
 
-use Asawl\LaravelSqliteManager\Support\CsvImporter;
 use RuntimeException;
 
 class ImportRecordsAction
 {
     public function __construct(
-        private readonly CsvImporter $csvImporter,
         private readonly ManageRecordAction $manageRecordAction,
     ) {}
 
     /**
-     * @param  list<array<string, string>>  $rows  Pre-parsed CSV rows
+     * @param  list<array<string, string|null>>  $rows  Pre-parsed CSV rows
      * @return list<array<string, mixed>>
      */
     public function import(string $table, string $connection, array $rows): array
@@ -36,20 +34,14 @@ class ImportRecordsAction
             }
 
             $key = $this->manageRecordAction->create($table, $connection, $sanitized);
-            $inserted[] = ['_key' => $key, ...$sanitized];
+            $inserted[] = [...$sanitized, '_key' => $key];
         }
 
         return $inserted;
     }
 
-    /** @return list<array<string, string>> */
-    public function parseCsv(string $csv): array
-    {
-        return $this->csvImporter->rows($csv);
-    }
-
     /**
-     * @param  array<string, string>  $row
+     * @param  array<string, string|null>  $row
      * @return array<string, string>
      */
     private function sanitizeRow(array $row): array
@@ -63,7 +55,7 @@ class ImportRecordsAction
                 continue;
             }
 
-            $sanitized[$trimmedKey] = mb_strlen($value) > 65535 ? mb_substr($value, 0, 65535) : $value;
+            $sanitized[$trimmedKey] = $value === null ? '' : (mb_strlen($value) > 65535 ? mb_substr($value, 0, 65535) : $value);
         }
 
         return $sanitized;

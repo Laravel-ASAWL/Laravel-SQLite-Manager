@@ -27,21 +27,6 @@ class InputValidator
         return $trimmed;
     }
 
-    public function validateColumnName(string $column): string
-    {
-        $trimmed = trim($column);
-
-        if ($trimmed === '') {
-            throw new RuntimeException('Column name cannot be empty.');
-        }
-
-        if (! preg_match('/^[a-zA-Z_]\w*$/', $trimmed)) {
-            throw new RuntimeException("Invalid column name format: {$trimmed}");
-        }
-
-        return $trimmed;
-    }
-
     public function validatePrimaryKey(string $key): string
     {
         $trimmed = trim($key);
@@ -74,15 +59,6 @@ class InputValidator
         $direction = mb_strtolower($direction);
 
         return $direction === 'desc' ? 'DESC' : 'ASC';
-    }
-
-    public function assertNumeric(mixed $value, string $name): int
-    {
-        if (! is_numeric($value)) {
-            throw new RuntimeException("{$name} must be a numeric value.");
-        }
-
-        return max(1, (int) $value);
     }
 
     public function quoteIdentifier(string $identifier): string

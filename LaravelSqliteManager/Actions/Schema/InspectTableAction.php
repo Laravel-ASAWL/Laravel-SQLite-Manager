@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Asawl\LaravelSqliteManager\Actions\Schema;
 
+use Asawl\LaravelSqliteManager\Actions\Records\ListTablesAction;
 use Asawl\LaravelSqliteManager\Actions\Security\ConnectionManager;
 use Asawl\LaravelSqliteManager\Actions\Security\InputValidator;
 use PDO;
@@ -13,6 +14,7 @@ class InspectTableAction
     public function __construct(
         private readonly ConnectionManager $connectionManager,
         private readonly InputValidator $inputValidator,
+        private readonly ListTablesAction $listTablesAction,
     ) {}
 
     /**
@@ -30,36 +32,7 @@ class InspectTableAction
     /** @return list<array{name: string, type: string, nullable: bool, default: mixed, primary: bool}> */
     public function columns(string $table, string $connection): array
     {
-        $this->connectionManager->assertTableExists($table, $connection);
-
-        $statement = $this->connectionManager->pdo($connection)->query('PRAGMA table_info('.$this->inputValidator->quoteIdentifier($table).')');
-
-        if ($statement === false) {
-            return [];
-        }
-
-        $columns = [];
-
-        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $column) {
-            if (! is_array($column)) {
-                continue;
-            }
-            if (! is_string($column['name'] ?? null)) {
-                continue;
-            }
-            $notnull = $column['notnull'] ?? 0;
-            $pk = $column['pk'] ?? 0;
-
-            $columns[] = [
-                'name' => $column['name'],
-                'type' => is_string($column['type'] ?? null) ? $column['type'] : '',
-                'nullable' => is_numeric($notnull) ? ((int) $notnull) === 0 : true,
-                'default' => $column['dflt_value'] ?? null,
-                'primary' => is_numeric($pk) && (int) $pk > 0,
-            ];
-        }
-
-        return $columns;
+        return $this->listTablesAction->columns($table, $connection);
     }
 
     /** @return list<array{name: string, unique: bool, columns: list<string>}> */

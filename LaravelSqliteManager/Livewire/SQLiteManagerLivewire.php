@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Asawl\LaravelSqliteManager\Livewire;
 
+use Asawl\LaravelSqliteManager\Actions\Security\ConnectionManager;
 use Asawl\LaravelSqliteManager\SQLiteManagerRepository;
 use Asawl\LaravelSqliteManager\Support\AccessPolicy;
 use Asawl\LaravelSqliteManager\Support\AuditLogger;
@@ -80,6 +81,8 @@ class SQLiteManagerLivewire extends Component
     public ?string $error = null;
 
     private SQLiteManagerRepository $repository;
+
+    private ConnectionManager $connectionManager;
 
     private AccessPolicy $accessPolicy;
 
@@ -176,7 +179,6 @@ class SQLiteManagerLivewire extends Component
             'readOnly' => $this->accessPolicy->readOnly(),
             'schema' => $schema,
             'selectedColumnsForDisplay' => $selectedColumns,
-            'showLaravelTables' => $this->showLaravelTables,
             'tables' => $tables,
             'visibleColumns' => $visibleColumns,
         ]);
@@ -333,20 +335,9 @@ class SQLiteManagerLivewire extends Component
 
         try {
             $rows = $this->csvImporter->rows($this->csvImport);
-            $limit = $this->importLimit();
+            $inserted = $this->repository->importRows($this->tableOrFail(), $rows);
 
-            if (count($rows) > $limit) {
-                throw new RuntimeException('CSV import exceeds the configured row limit.');
-            }
-
-            $inserted = [];
-
-            foreach ($rows as $row) {
-                $key = $this->repository->insert($this->table, $row);
-                $inserted[] = ['_key' => $key, ...$row];
-            }
-
-            $this->auditLogger->logBatch('import', $this->table, $inserted);
+            $this->auditLogger->logBatch('import', $this->tableOrFail(), $inserted);
         } catch (RuntimeException $exception) {
             $this->error = $exception->getMessage();
 
@@ -479,6 +470,7 @@ class SQLiteManagerLivewire extends Component
 
     public function boot(
         SQLiteManagerRepository $sqLiteManagerRepository,
+        ConnectionManager $connectionManager,
         AccessPolicy $accessPolicy,
         AuditLogger $auditLogger,
         CsvImporter $csvImporter,
@@ -488,6 +480,7 @@ class SQLiteManagerLivewire extends Component
         Filesystem $filesystem,
     ): void {
         $this->repository = $sqLiteManagerRepository;
+        $this->connectionManager = $connectionManager;
         $this->accessPolicy = $accessPolicy;
         $this->auditLogger = $auditLogger;
         $this->csvImporter = $csvImporter;
@@ -589,13 +582,6 @@ class SQLiteManagerLivewire extends Component
         return $this->table;
     }
 
-    private function configuredPath(): string
-    {
-        $path = config('sqlite-manager.database_path', database_path('database.sqlite'));
-
-        return is_string($path) ? $path : database_path('database.sqlite');
-    }
-
     private function defaultShowLaravelTables(): bool
     {
         return (bool) config('sqlite-manager.tables.show_laravel_tables', false);
@@ -627,35 +613,20 @@ class SQLiteManagerLivewire extends Component
         return 'This SQLite Manager action is not allowed.';
     }
 
+    private function validConnection(string $connection): string
+    {
+        return $this->connectionManager->validConnection($connection);
+    }
+
     /** @return list<string> */
     private function connectionNames(): array
     {
-        $connections = config('sqlite-manager.connections', ['default' => $this->configuredPath()]);
-
-        if (! is_array($connections)) {
-            return ['default'];
-        }
-
-        $names = array_values(array_filter(array_keys($connections), is_string(...)));
-
-        return $names === [] ? ['default'] : $names;
-    }
-
-    private function validConnection(string $connection): string
-    {
-        return in_array($connection, $this->connectionNames(), true) ? $connection : 'default';
+        return $this->connectionManager->connectionNames();
     }
 
     private function applySelectedConnection(): void
     {
         config(['sqlite-manager.active_connection' => $this->connection]);
-    }
-
-    private function importLimit(): int
-    {
-        $limit = config('sqlite-manager.imports.max_rows', 500);
-
-        return is_numeric($limit) ? max(1, (int) $limit) : 500;
     }
 
     /** @param list<string> $selectedKeys */

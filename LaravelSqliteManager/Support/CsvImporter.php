@@ -9,7 +9,7 @@ use RuntimeException;
 class CsvImporter
 {
     /**
-     * @return list<array<string, string>>
+     * @return list<array<string, string|null>>
      */
     public function rows(string $csv): array
     {
@@ -25,7 +25,12 @@ class CsvImporter
             throw new RuntimeException('Unable to open temporary CSV stream.');
         }
 
-        fwrite($stream, $csv);
+        if (fwrite($stream, $csv) === false) {
+            fclose($stream);
+
+            throw new RuntimeException('Failed to write CSV data to temporary stream.');
+        }
+
         rewind($stream);
 
         $headers = fgetcsv($stream);
@@ -48,6 +53,10 @@ class CsvImporter
                 }
 
                 $row[$header] = $data[$index] ?? '';
+            }
+
+            foreach (array_slice($data, count($headers)) as $extraIndex => $extraValue) {
+                $row['_extra_'.($extraIndex + 1)] = $extraValue;
             }
 
             if ($row !== []) {

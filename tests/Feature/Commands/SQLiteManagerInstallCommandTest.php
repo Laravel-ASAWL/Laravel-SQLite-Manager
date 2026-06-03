@@ -44,7 +44,7 @@ test('it installs the sqlite manager config into a laravel project', function ()
         ->and(File::get($this->envPath))->toContain('SQLITE_MANAGER_ROUTE_PREFIX=sqlite-manager')
         ->and(File::get($this->envPath))->toContain('SQLITE_MANAGER_SHOW_LARAVEL_TABLES=false')
         ->and(File::get($this->envPath))->toContain('SQLITE_MANAGER_READ_ONLY=false')
-        ->and(File::get($this->envPath))->toContain('SQLITE_MANAGER_AUDIT_ENABLED=false');
+        ->and(File::get($this->envPath))->toContain('SQLITE_MANAGER_AUDIT_ENABLED=true');
 });
 
 test('it does not overwrite existing sqlite manager environment variables', function (): void {

@@ -43,7 +43,8 @@ trait WithFilters
     {
         return array_values(array_filter(
             $this->filters,
-            fn (array $filter): bool => $filter['column'] !== '' && $filter['value'] !== '',
+            fn (array $filter): bool => $filter['column'] !== ''
+                && ($filter['value'] !== '' || in_array($filter['operator'] ?? '', ['is_null', 'is_not_null'], true)),
         ));
     }
 }

@@ -85,12 +85,6 @@ class ConnectionManager
         return $this->pdo;
     }
 
-    public function clearConnection(): void
-    {
-        $this->pdo = null;
-        $this->activePath = null;
-    }
-
     public function assertTableExists(string $table, ?string $connection = null): void
     {
         $tables = $this->fetchTableNames($connection);

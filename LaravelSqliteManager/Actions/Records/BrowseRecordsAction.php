@@ -63,7 +63,7 @@ class BrowseRecordsAction
             'total' => $total,
             'page' => $page,
             'per_page' => $perPage,
-            'last_page' => max(1, (int) ceil($total / $perPage)),
+            'last_page' => $total === 0 ? 0 : max(1, (int) ceil($total / $perPage)),
             'from' => $total === 0 ? 0 : $offset + 1,
             'to' => min($total, $offset + count($fetched)),
             'columns' => $columns,
@@ -353,7 +353,7 @@ class BrowseRecordsAction
 
     private function exportLimit(): int
     {
-        $limit = config('sqlite-manager.security.limits.max_export_rows', config('sqlite-manager.exports.max_rows', 5000));
+        $limit = config('sqlite-manager.exports.max_rows', 5000);
 
         return is_numeric($limit) ? max(1, (int) $limit) : 5000;
     }

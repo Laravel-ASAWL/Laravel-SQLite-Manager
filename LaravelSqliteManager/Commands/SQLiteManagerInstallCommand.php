@@ -90,7 +90,7 @@ class SQLiteManagerInstallCommand extends Command
             'SQLITE_MANAGER_ROUTE_PREFIX' => 'sqlite-manager',
             'SQLITE_MANAGER_SHOW_LARAVEL_TABLES' => 'false',
             'SQLITE_MANAGER_READ_ONLY' => 'false',
-            'SQLITE_MANAGER_AUDIT_ENABLED' => 'false',
+            'SQLITE_MANAGER_AUDIT_ENABLED' => 'true',
         ];
     }
 }

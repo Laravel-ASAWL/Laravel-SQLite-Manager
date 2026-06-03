@@ -6,6 +6,7 @@ namespace Asawl\LaravelSqliteManager\Actions\Audit;
 
 use Asawl\LaravelSqliteManager\Actions\Security\ConnectionManager;
 use Asawl\LaravelSqliteManager\Actions\Security\InputValidator;
+use JsonException;
 
 class LogAction
 {
@@ -31,8 +32,8 @@ class LogAction
             'action' => $action,
             'table_name' => $table,
             'record_key' => $recordKey,
-            'before_values' => $before === null ? null : json_encode($before, JSON_THROW_ON_ERROR),
-            'after_values' => $after === null ? null : json_encode($after, JSON_THROW_ON_ERROR),
+            'before_values' => $before === null ? null : $this->safeJsonEncode($before),
+            'after_values' => $after === null ? null : $this->safeJsonEncode($after),
             'created_at' => now()->toDateTimeString(),
         ]);
     }
@@ -57,7 +58,7 @@ class LogAction
                 'table_name' => $table,
                 'record_key' => $row['_key'] ?? null,
                 'before_values' => null,
-                'after_values' => json_encode($row, JSON_THROW_ON_ERROR),
+                'after_values' => $this->safeJsonEncode($row),
                 'created_at' => $now,
             ]);
         }
@@ -73,5 +74,17 @@ class LogAction
         $table = config('sqlite-manager.audit.table', '_lsm_audit_log');
 
         return is_string($table) && $table !== '' ? $table : '_lsm_audit_log';
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function safeJsonEncode(array $data): string
+    {
+        try {
+            return json_encode($data, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE);
+        } catch (JsonException) {
+            return json_encode(['_error' => 'Failed to encode audit data'], JSON_THROW_ON_ERROR);
+        }
     }
 }

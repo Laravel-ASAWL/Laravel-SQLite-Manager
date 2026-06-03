@@ -45,22 +45,74 @@ SQLITE_MANAGER_ROUTES_ENABLED=true
 SQLITE_MANAGER_ROUTE_PREFIX=sqlite-manager
 SQLITE_MANAGER_SHOW_LARAVEL_TABLES=false
 SQLITE_MANAGER_READ_ONLY=false
-SQLITE_MANAGER_AUDIT_ENABLED=false
+SQLITE_MANAGER_AUDIT_ENABLED=true
 ```
 
 Existing values are preserved and are not duplicated.
 
-## Audit Table
+## Audit Log
 
-The audit log table can be created using the dedicated Artisan command:
+Audit logging is **enabled by default** (since v2.0.0). Every create, update, delete, and bulk-delete operation performed through the web UI is recorded in the audit log table, including the before and after values. Batch imports are also logged.
+
+### How It Works
+
+When an auditable action occurs, the system:
+
+1. Checks `config('sqlite-manager.audit.enabled')` — returns immediately if disabled.
+2. Auto-creates the audit table if it does not exist (`CREATE TABLE IF NOT EXISTS`).
+3. Inserts a row with the action type, affected table, record key, before/after values (JSON-encoded), and a timestamp.
+
+No separate migration step is required for the table to be created — it is created on first use. However, you can also create a proper Laravel migration for it:
+
+### Migration (Optional)
 
 ```bash
 php artisan sqlite-manager:create-audit-log-table
 ```
 
-The command copies `create_audit_log_table.php.stub` into `database/migrations` and runs `php artisan migrate`. Use `--force` to overwrite the existing migration file and force the migration run, or `--no-migrate` to copy the file without running migrations.
+This copies `create_audit_log_table.php.stub` into `database/migrations` and runs `php artisan migrate`. Use `--force` to overwrite the existing migration file and force the migration run, or `--no-migrate` to copy the file without running migrations.
 
-The audit table is created with the name configured in `config('sqlite-manager.audit.table', '_lsm_audit_log')`.
+### Table Schema
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | INTEGER (PK, autoincrement) | Auto-incrementing identifier |
+| `action` | TEXT | `create`, `update`, `delete`, `bulk_delete`, `import` |
+| `table_name` | TEXT | The SQLite table that was modified |
+| `record_key` | TEXT (nullable) | Primary key value of the affected record (null for bulk operations) |
+| `before_values` | TEXT / JSON (nullable) | Record state before the change |
+| `after_values` | TEXT / JSON (nullable) | Record state after the change |
+| `created_at` | TEXT | Timestamp of the operation |
+
+### Configuration
+
+```php
+'audit' => [
+    'enabled' => env('SQLITE_MANAGER_AUDIT_ENABLED', true),
+    'table' => '_lsm_audit_log',
+],
+```
+
+| Key | Default | Description |
+|---|---|---|
+| `enabled` | `true` | Set to `false` to disable all audit logging |
+| `table` | `_lsm_audit_log` | The name of the audit log table |
+
+Disable audit logging via `.env`:
+
+```dotenv
+SQLITE_MANAGER_AUDIT_ENABLED=false
+```
+
+### Logged Operations
+
+| Operation | Action Value | `record_key` | `before_values` | `after_values` |
+|---|---|---|---|---|
+| Create record | `create` | New record key | `null` | Created attributes |
+| Edit record | `update` | Edited record key | Previous values | New values |
+| Delete record | `delete` | Deleted record key | Deleted values | `null` |
+| Bulk delete | `bulk_delete` | `null` | Keys of deleted records | `null` |
+| CSV import | `import` | Per-row key | `null` | Imported row data |
 
 ## Test Data
 
@@ -108,7 +160,6 @@ return [
         ],
         'limits' => [
             'max_delete_rows' => 100,
-            'max_export_rows' => 5000,
             'max_page_size' => 100,
         ],
     ],
@@ -136,9 +187,8 @@ return [
     ],
 
     'audit' => [
-        'enabled' => env('SQLITE_MANAGER_AUDIT_ENABLED', false),
+        'enabled' => env('SQLITE_MANAGER_AUDIT_ENABLED', true),
         'table' => '_lsm_audit_log',
-        'migration' => true,
     ],
 
     'exports' => [
@@ -174,15 +224,15 @@ If you changed `SQLITE_MANAGER_ROUTE_PREFIX`, use that path instead.
 
 - Browse SQLite tables and records.
 - Switch between configured SQLite database files.
-- Search across table columns with advanced column filters and sortable headers.
+- Search across table columns with advanced column filters (`equals`, `not_equals`, `gt`, `gte`, `lt`, `lte`, `contains`, `starts_with`, `ends_with`, `is_null`, `is_not_null`) and sortable headers.
 - Create, edit, and delete records.
-- Import rows from CSV input.
+- Import rows from CSV input with key trimming, value truncation, and `_extra_N` columns for extra CSV data.
 - Optional read-only mode for inspection-only access.
 - Per-action Gate authorization for access, view, create, update, delete, bulk delete, export, and import.
 - Allowlist and denylist controls for exposed tables.
 - Export filtered or selected rows to CSV or JSON.
 - Bulk delete selected rows.
-- Optional audit log for create, update, delete, and bulk delete operations with batch import support.
+- Audit log for create, update, delete, bulk delete, and CSV import operations (enabled by default, configurable).
 - Artisan command to create the audit log table (`sqlite-manager:create-audit-log-table`).
 - Schema inspector for table columns, indexes, and foreign keys.
 - Soft delete awareness for tables with `deleted_at` columns.

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Asawl\LaravelSqliteManager\Support;
 
 use Asawl\LaravelSqliteManager\SQLiteManagerRepository;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DataExporter
@@ -31,7 +32,7 @@ class DataExporter
             $output = fopen('php://output', 'w');
 
             if ($output === false) {
-                return;
+                throw new RuntimeException('Unable to open output stream for CSV export.');
             }
 
             $headers = array_keys($rows[0] ?? []);

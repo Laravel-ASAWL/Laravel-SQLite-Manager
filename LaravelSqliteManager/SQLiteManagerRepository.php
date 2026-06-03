@@ -31,11 +31,6 @@ class SQLiteManagerRepository
         return $this->connectionManager->databasePath();
     }
 
-    public function databaseExists(): bool
-    {
-        return $this->connectionManager->databaseExists();
-    }
-
     /** @return list<array{name: string, rows: int, columns: int}> */
     public function tableSummaries(bool $includeLaravelTables = false): array
     {
@@ -89,6 +84,7 @@ class SQLiteManagerRepository
     public function find(string $table, string $key): ?array
     {
         $this->inputValidator->validateTableName($table);
+        $this->inputValidator->validatePrimaryKey($key);
 
         return $this->browseRecordsAction->find($table, $this->connection(), $key);
     }
@@ -148,13 +144,6 @@ class SQLiteManagerRepository
         return $this->listTablesAction->count($table, $this->connection());
     }
 
-    public function primaryKey(string $table): ?string
-    {
-        $this->inputValidator->validateTableName($table);
-
-        return $this->browseRecordsAction->primaryKey($table, $this->connection());
-    }
-
     /** @return array{table: string, key: string}|null */
     public function relationTarget(string $table, string $column, mixed $value): ?array
     {
@@ -179,24 +168,8 @@ class SQLiteManagerRepository
         return $this->inspectTableAction->inspect($table, $this->connection());
     }
 
-    /** @return list<array{name: string, unique: bool, columns: list<string>}> */
-    public function indexes(string $table): array
-    {
-        $this->inputValidator->validateTableName($table);
-
-        return $this->inspectTableAction->indexes($table, $this->connection());
-    }
-
-    /** @return list<array{column: string, table: string, foreign_column: string}> */
-    public function foreignKeys(string $table): array
-    {
-        $this->inputValidator->validateTableName($table);
-
-        return $this->inspectTableAction->foreignKeys($table, $this->connection());
-    }
-
     /**
-     * @param  list<array<string, string>>  $rows
+     * @param  list<array<string, string|null>>  $rows
      * @return list<array<string, mixed>>
      */
     public function importRows(string $table, array $rows): array

@@ -210,7 +210,7 @@
                     </div>
                 </div>
 
-                <form class="search-form" wire:submit.prevent>
+                <form class="search-form">
                     <details class="column-picker">
                         <summary>Columns</summary>
                         <div class="column-options">
